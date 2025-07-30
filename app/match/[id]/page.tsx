@@ -24,6 +24,7 @@ import {
   ExternalLink,
   CreditCard,
   Save,
+  UserPlus,
 } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { toast } from "@/components/ui/use-toast"
@@ -57,6 +58,7 @@ import type { User as UserType } from "@/app/lib/types"
 import { format, formatDistanceToNow } from "date-fns"
 import { tr } from "date-fns/locale"
 import { PlayerNameAutocomplete } from "@/app/components/player-name-autocomplete"
+import { Textarea } from "@/components/ui/textarea"
 
 export default function MatchPage({ params }: { params: { id: string } }) {
   const router = useRouter()
@@ -70,6 +72,17 @@ export default function MatchPage({ params }: { params: { id: string } }) {
   const [loading, setLoading] = useState(true)
   const [allUsers, setAllUsers] = useState<UserType[]>([])
   const [activePlayerCount, setActivePlayerCount] = useState(0)
+
+  // Bulk add state
+  const [bulkAddDialogOpen, setBulkAddDialogOpen] = useState(false)
+  const [bulkAddText, setBulkAddText] = useState("")
+  const [bulkAdding, setBulkAdding] = useState(false)
+  interface BulkAddResult {
+    added: UserType[]
+    alreadyRegistered: string[]
+    notFound: string[]
+  }
+  const [bulkAddResult, setBulkAddResult] = useState<BulkAddResult | null>(null)
 
   // Function to format date in readable Turkish format
   const formatReadableDate = (dateString: string) => {
@@ -762,6 +775,106 @@ export default function MatchPage({ params }: { params: { id: string } }) {
     }
   }
 
+  // Handle bulk add
+  const handleBulkAdd = async () => {
+    if (!bulkAddText.trim()) {
+      toast({
+        title: "Hata",
+        description: "Lütfen eklenecek oyuncuların listesini girin.",
+        variant: "destructive",
+      })
+      return
+    }
+
+    setBulkAdding(true)
+    setBulkAddResult(null) // Clear previous results
+
+    try {
+      const lines = bulkAddText.split("\n").filter((line) => line.trim() !== "")
+
+      const parsedNames = lines
+        .map((line) => {
+          const name = line
+            .replace(/\d+\s*-\s*/, "") // Remove "1 - "
+            .replace(/$$.*?$$/g, "") // Remove "(...)"
+            .trim()
+          // Capitalize first letter, lowercase the rest
+          if (!name) return ""
+          return name.charAt(0).toUpperCase() + name.slice(1).toLowerCase()
+        })
+        .filter(Boolean) as string[]
+
+      const uniqueNames = [...new Set(parsedNames)] // Remove duplicates from input
+
+      const notFoundNames: string[] = []
+      const alreadyRegisteredNames: string[] = []
+      const usersToRegister: UserType[] = []
+
+      // Create a lowercase map for efficient lookup
+      const existingPlayersLower = new Set(
+        players.filter((p) => p.status !== "canceled").map((p) => p.name.toLowerCase()),
+      )
+      const allUsersLowerMap = new Map(allUsers.map((u) => [u.name.toLowerCase(), u]))
+
+      for (const name of uniqueNames) {
+        if (!name) continue
+
+        // Check if already registered
+        if (existingPlayersLower.has(name.toLowerCase())) {
+          alreadyRegisteredNames.push(name)
+          continue
+        }
+
+        // Find user in DB
+        const user = allUsersLowerMap.get(name.toLowerCase())
+        if (user) {
+          usersToRegister.push(user)
+        } else {
+          notFoundNames.push(name)
+        }
+      }
+
+      // Register the found users
+      if (usersToRegister.length > 0) {
+        const registrationPromises = usersToRegister.map((user) =>
+          registerPlayerForMatch(matchId, user.name, user.phone, user.position || ""),
+        )
+        await Promise.all(registrationPromises)
+      }
+
+      // Set results for display
+      setBulkAddResult({
+        added: usersToRegister,
+        alreadyRegistered: alreadyRegisteredNames,
+        notFound: notFoundNames,
+      })
+
+      toast({
+        title: "Toplu Ekleme Tamamlandı",
+        description: "Sonuçlar aşağıda gösterilmiştir.",
+      })
+
+      // Refresh data
+      const updatedPlayers = await getPlayersForMatch(matchId)
+      setPlayers(updatedPlayers)
+      const updatedActiveCount = await getActivePlayerCount(matchId)
+      setActivePlayerCount(updatedActiveCount)
+
+      // Close dialog
+      setBulkAddDialogOpen(false)
+      setBulkAddText("")
+    } catch (error) {
+      console.error("Error during bulk add:", error)
+      toast({
+        title: "Hata",
+        description: "Toplu ekleme sırasında bir hata oluştu.",
+        variant: "destructive",
+      })
+    } finally {
+      setBulkAdding(false)
+    }
+  }
+
   // Group players by status and team
   const teamAPlayers = players.filter((p) => p.status === "active" && p.team === "A")
   const teamBPlayers = players.filter((p) => p.status === "active" && p.team === "B")
@@ -1054,16 +1167,82 @@ export default function MatchPage({ params }: { params: { id: string } }) {
             )}
           </div>
 
-          <div className="mt-4 pt-4 border-t">
+          <div className="mt-4 pt-4 border-t grid grid-cols-1 gap-2">
             <Link href={`/organize_teams/${match.id}`} passHref>
               <Button variant="outline" className="w-full bg-transparent">
                 <Users className="mr-2 h-4 w-4" />
                 Takımları Düzenle
               </Button>
             </Link>
+            {isAdmin && (
+              <Button variant="outline" className="w-full bg-transparent" onClick={() => setBulkAddDialogOpen(true)}>
+                <UserPlus className="mr-2 h-4 w-4" />
+                Toplu Oyuncu Ekle
+              </Button>
+            )}
           </div>
         </CardContent>
       </Card>
+
+      {/* Bulk Add Result Card */}
+      {bulkAddResult && (
+        <Card className="mb-6 border-blue-200 bg-blue-50 dark:border-blue-800 dark:bg-blue-900/20">
+          <CardHeader className="flex flex-row items-center justify-between pb-2">
+            <CardTitle className="text-lg">Toplu Ekleme Sonucu</CardTitle>
+            <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => setBulkAddResult(null)}>
+              <X className="h-4 w-4" />
+              <span className="sr-only">Sonucu gizle</span>
+            </Button>
+          </CardHeader>
+          <CardContent>
+            {bulkAddResult.added.length > 0 && (
+              <div className="mb-3">
+                <p className="font-medium text-green-700 dark:text-green-400">
+                  {bulkAddResult.added.length} oyuncu eklendi:
+                </p>
+                <p className="text-sm text-muted-foreground">{bulkAddResult.added.map((u) => u.name).join(", ")}</p>
+              </div>
+            )}
+            {bulkAddResult.alreadyRegistered.length > 0 && (
+              <div className="mb-3">
+                <p className="font-medium text-yellow-700 dark:text-yellow-400">
+                  {bulkAddResult.alreadyRegistered.length} oyuncu zaten kayıtlıydı:
+                </p>
+                <p className="text-sm text-muted-foreground">{bulkAddResult.alreadyRegistered.join(", ")}</p>
+              </div>
+            )}
+            {bulkAddResult.notFound.length > 0 && (
+              <div>
+                <p className="font-medium text-red-700 dark:text-red-400">
+                  {bulkAddResult.notFound.length} oyuncu sistemde bulunamadı:
+                </p>
+                <p className="text-sm text-muted-foreground mb-2">
+                  Bu oyuncuları manuel olarak kaydetmek için isimlerine tıklayın.
+                </p>
+                <div className="flex flex-wrap gap-2">
+                  {bulkAddResult.notFound.map((notFoundName) => (
+                    <Button
+                      key={notFoundName}
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        setName(notFoundName)
+                        const nameInput = document.getElementById("name-input")
+                        if (nameInput) {
+                          nameInput.focus()
+                          nameInput.scrollIntoView({ behavior: "smooth", block: "center" })
+                        }
+                      }}
+                    >
+                      {notFoundName}
+                    </Button>
+                  ))}
+                </div>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
 
       {/* Registration Form - Only show when status is registering */}
       {match.status === "registering" && (
@@ -1075,10 +1254,11 @@ export default function MatchPage({ params }: { params: { id: string } }) {
           <CardContent>
             <div className="space-y-4">
               <div className="space-y-2">
-                <Label htmlFor="name">
+                <Label htmlFor="name-input">
                   İsim <span className="text-red-500">*</span>
                 </Label>
                 <PlayerNameAutocomplete
+                  id="name-input"
                   users={allUsers}
                   value={name}
                   onChange={setName}
@@ -1367,6 +1547,43 @@ export default function MatchPage({ params }: { params: { id: string } }) {
                 </>
               ) : (
                 "Onayla"
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={bulkAddDialogOpen} onOpenChange={setBulkAddDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Toplu Oyuncu Ekle</DialogTitle>
+            <DialogDescription>
+              Oyuncu listesini aşağıya yapıştırın. Her oyuncu yeni bir satırda olmalıdır. Sistemde kayıtlı olmayan veya
+              zaten maçta olan oyuncular eklenmeyecektir.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="py-4">
+            <Textarea
+              placeholder={`1 - Arda
+2 - Hakan
+3 - Soner (Safa +1)`}
+              value={bulkAddText}
+              onChange={(e) => setBulkAddText(e.target.value)}
+              className="min-h-[200px]"
+              disabled={bulkAdding}
+            />
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setBulkAddDialogOpen(false)} disabled={bulkAdding}>
+              İptal
+            </Button>
+            <Button onClick={handleBulkAdd} disabled={bulkAdding}>
+              {bulkAdding ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Ekleniyor...
+                </>
+              ) : (
+                "Oyuncuları Ekle"
               )}
             </Button>
           </DialogFooter>
