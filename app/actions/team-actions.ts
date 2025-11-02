@@ -3,16 +3,16 @@
 import { createServerClient } from "@/app/lib/supabase"
 import type { Team } from "@/app/lib/types"
 
-// Map position IDs to position numbers (1-8)
 const positionMap: Record<string, number> = {
-  "forward-left": 1,
-  "forward-right": 2,
-  "midfield-left": 3,
-  "midfield-center": 4,
-  "midfield-right": 5,
-  "defense-left": 6,
-  "defense-center": 7,
-  "defense-right": 8,
+  "defense-left": 1,
+  "defense-center": 2,
+  "defense-right": 3,
+  "midfield-left": 4,
+  "midfield-center": 5,
+  "midfield-right": 6,
+  "forward-left": 7,
+  "forward-center": 8,
+  "forward-right": 9,
 }
 
 // Save team positions to the database

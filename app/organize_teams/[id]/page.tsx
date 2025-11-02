@@ -26,7 +26,7 @@ import { toast } from "@/components/ui/use-toast"
 import { Toaster } from "@/components/ui/toaster"
 import TeamPowerComparison from "@/app/components/team-power-comparison"
 
-// Define the positions for a 3-3-2 formation
+// Define the positions for a 3-3-3 formation
 const positionIds = [
   "defense-left",
   "defense-center",
@@ -35,6 +35,7 @@ const positionIds = [
   "midfield-center",
   "midfield-right",
   "forward-left",
+  "forward-center",
   "forward-right",
 ]
 
@@ -121,13 +122,14 @@ export default function OrganizeTeamsPage() {
   const getPositionMap = () => {
     return {
       "forward-left": 1,
-      "forward-right": 2,
-      "midfield-left": 3,
-      "midfield-center": 4,
-      "midfield-right": 5,
-      "defense-left": 6,
-      "defense-center": 7,
-      "defense-right": 8,
+      "forward-center": 2,
+      "forward-right": 3,
+      "midfield-left": 4,
+      "midfield-center": 5,
+      "midfield-right": 6,
+      "defense-left": 7,
+      "defense-center": 8,
+      "defense-right": 9,
     }
   }
 
@@ -292,7 +294,7 @@ export default function OrganizeTeamsPage() {
           } else if (player.position.includes("orta")) {
             matchingPositions = ["midfield-left", "midfield-center", "midfield-right"]
           } else if (player.position.includes("forvet")) {
-            matchingPositions = ["forward-left", "forward-right"]
+            matchingPositions = ["forward-left", "forward-center", "forward-right"]
           }
 
           // Try to assign to a matching position

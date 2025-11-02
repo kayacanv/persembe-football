@@ -247,7 +247,7 @@ export async function registerPlayerForMatch(
     return false
   }
 
-  const status = count !== null && count >= 16 ? "waitlist" : "active"
+  const status = count !== null && count >= 18 ? "waitlist" : "active"
 
   // Now register the player for the match
   const { error: registerError } = await supabase.from("match_players").insert({

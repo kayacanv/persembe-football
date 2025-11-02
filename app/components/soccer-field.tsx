@@ -51,8 +51,8 @@ export default function SoccerField({
 
       {/* Positions */}
       <div className="absolute inset-0 grid grid-rows-3 p-2">
-        {/* Forwards (2) */}
-        <div className="grid grid-cols-2 items-center">
+        {/* Forwards (3) */}
+        <div className="grid grid-cols-3 items-center">
           <PositionDroppable
             id={`forward-left-${team}`}
             player={positions["forward-left"]}
@@ -63,6 +63,17 @@ export default function SoccerField({
             onClick={() => handlePositionClick(`forward-left-${team}`)}
             unassignedPlayers={unassignedPlayers}
             onPlayerSelect={(player) => handlePlayerSelect("forward-left", player)}
+          />
+          <PositionDroppable
+            id={`forward-center-${team}`}
+            player={positions["forward-center"]}
+            team={team}
+            label="Orta Forvet"
+            onRemove={() => onRemovePlayer("forward-center")}
+            isActive={activePosition === `forward-center-${team}`}
+            onClick={() => handlePositionClick(`forward-center-${team}`)}
+            unassignedPlayers={unassignedPlayers}
+            onPlayerSelect={(player) => handlePlayerSelect("forward-center", player)}
           />
           <PositionDroppable
             id={`forward-right-${team}`}

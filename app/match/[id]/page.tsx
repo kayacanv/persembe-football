@@ -321,7 +321,7 @@ export default function MatchPage({ params }: { params: { id: string } }) {
     const updatedActiveCount = await getActivePlayerCount(matchId)
     setActivePlayerCount(updatedActiveCount)
 
-    const isWaitlisted = updatedActiveCount > 16
+    const isWaitlisted = updatedActiveCount > 18
 
     toast({
       title: "Başarılı",
@@ -796,7 +796,7 @@ export default function MatchPage({ params }: { params: { id: string } }) {
         .map((line) => {
           const name = line
             .replace(/\d+\s*-\s*/, "") // Remove "1 - "
-            .replace(/$$.*?$$/g, "") // Remove "(...)"
+            .replace(/\s*$$.*$$/, "") // Remove content in parentheses
             .trim()
           // Capitalize first letter, lowercase the rest
           if (!name) return ""
@@ -1099,7 +1099,7 @@ export default function MatchPage({ params }: { params: { id: string } }) {
           <div className="flex items-center">
             <Users className="mr-2 h-4 w-4 text-muted-foreground" />
             <span>
-              Kayıtlı Oyuncu: {activePlayerCount}/16
+              Kayıtlı Oyuncu: {activePlayerCount}/18
               {waitlistedPlayers.length > 0 && ` (Bekleme Listesi: ${waitlistedPlayers.length})`}
               {canceledPlayers.length > 0 && ` (İptal: ${canceledPlayers.length})`}
             </span>
