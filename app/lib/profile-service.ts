@@ -136,12 +136,15 @@ export async function getPlayerMatchHistory(userId: string): Promise<PlayerMatch
   // Transform the data
   const matchHistory: PlayerMatchSummary[] = matchPlayers.map((mp) => {
     const match = mp.matches
-    let result: "win" | "loss" | "unknown" = "unknown"
+    let result: "win" | "draw" | "loss" | "unknown" = "unknown"
     let score: string | null = null
 
     // Only calculate result if the match is done and has scores
     if (match.status === "done" && match.score_a !== null && match.score_b !== null) {
-      if (mp.team === "A") {
+      // Draw: scores are equal and not 0-0
+      if (match.score_a === match.score_b && match.score_a !== 0) {
+        result = "draw"
+      } else if (mp.team === "A") {
         result = match.score_a > match.score_b ? "win" : "loss"
       } else if (mp.team === "B") {
         result = match.score_b > match.score_a ? "win" : "loss"
@@ -207,18 +210,25 @@ export async function getPlayerStats(userId: string): Promise<PlayerStats | null
 
   // Calculate statistics
   let wins = 0
+  let draws = 0
   let losses = 0
   let teamAMatches = 0
   let teamAWins = 0
+  let teamADraws = 0
   let teamBMatches = 0
   let teamBWins = 0
+  let teamBDraws = 0
 
   completedMatches.forEach((mp) => {
     const match = mp.matches
+    const isDrawMatch = match.score_a === match.score_b && match.score_a !== 0
 
     if (mp.team === "A") {
       teamAMatches++
-      if (match.score_a > match.score_b) {
+      if (isDrawMatch) {
+        draws++
+        teamADraws++
+      } else if (match.score_a > match.score_b) {
         wins++
         teamAWins++
       } else {
@@ -226,7 +236,10 @@ export async function getPlayerStats(userId: string): Promise<PlayerStats | null
       }
     } else if (mp.team === "B") {
       teamBMatches++
-      if (match.score_b > match.score_a) {
+      if (isDrawMatch) {
+        draws++
+        teamBDraws++
+      } else if (match.score_b > match.score_a) {
         wins++
         teamBWins++
       } else {
@@ -243,13 +256,16 @@ export async function getPlayerStats(userId: string): Promise<PlayerStats | null
   return {
     totalMatches,
     wins,
+    draws,
     losses,
     winRate,
     teamAMatches,
     teamAWins,
+    teamADraws,
     teamAWinRate,
     teamBMatches,
     teamBWins,
+    teamBDraws,
     teamBWinRate,
   }
 }
@@ -407,8 +423,30 @@ export async function getPlayerTeammates(userId: string): Promise<TeammateStats[
     .sort((a, b) => {
       return b.matchesPlayedAgainst + b.matchesPlayedTogether - a.matchesPlayedAgainst - a.matchesPlayedTogether
     })
-    .filter(
-   (b) => ( b.matchesPlayedAgainst + b.matchesPlayedTogether)>2
-    )
-    .slice(0,20)
+    .filter((b) => b.matchesPlayedAgainst + b.matchesPlayedTogether > 2)
+    .slice(0, 20)
+}
+
+// Get count of unpaid matches for a player
+export async function getUnpaidMatchesCount(userId: string): Promise<number> {
+  const supabase = getSupabaseBrowserClient()
+  if (!supabase) {
+    console.error("Supabase client is not initialized")
+    return 0
+  }
+
+  // Get all matches where player hasn't paid
+  const { data: unpaidMatches, error } = await supabase
+    .from("match_players")
+    .select("id")
+    .eq("user_id", userId)
+    .eq("has_paid", false)
+    .eq("status", "active")
+
+  if (error) {
+    console.error("Error fetching unpaid matches count:", error)
+    return 0
+  }
+
+  return unpaidMatches?.length || 0
 }

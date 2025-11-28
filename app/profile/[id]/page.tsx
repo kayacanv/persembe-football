@@ -34,6 +34,7 @@ import {
   Info,
   Eye,
   EyeOff,
+  Minus,
 } from "lucide-react"
 import Link from "next/link"
 import {
@@ -43,6 +44,7 @@ import {
   getPlayerMatchHistory,
   getPlayerStats,
   getPlayerTeammates,
+  getUnpaidMatchesCount,
 } from "@/app/lib/profile-service"
 import type { User as UserType, PlayerMatchSummary, PlayerStats, TeammateStats } from "@/app/lib/types"
 import PlayerPhotoCard from "@/app/components/player-photo-card"
@@ -59,6 +61,7 @@ export default function PlayerProfilePage() {
   const [playerStats, setPlayerStats] = useState<PlayerStats | null>(null)
   const [teammates, setTeammates] = useState<TeammateStats[]>([])
   const [showPhotoInstructions, setShowPhotoInstructions] = useState(false)
+  const [unpaidMatchesCount, setUnpaidMatchesCount] = useState(0)
 
   // Form state
   const [phone, setPhone] = useState("")
@@ -85,14 +88,16 @@ export default function PlayerProfilePage() {
         setPhone(userData.phone || "")
         setEmail(userData.email || "")
 
-        const [history, stats, teammatesData] = await Promise.all([
+        const [history, stats, teammatesData, unpaidCount] = await Promise.all([
           getPlayerMatchHistory(playerId),
           getPlayerStats(playerId),
           getPlayerTeammates(playerId),
+          getUnpaidMatchesCount(playerId),
         ])
         setMatchHistory(history)
         setPlayerStats(stats)
         setTeammates(teammatesData)
+        setUnpaidMatchesCount(unpaidCount)
       } catch (error) {
         console.error("Error loading player data:", error)
         toast({ title: "Hata", description: "Veri yüklenirken bir hata oluştu.", variant: "destructive" })
@@ -229,7 +234,7 @@ export default function PlayerProfilePage() {
           />
           <Button
             variant="outline"
-            className="mt-4 w-full max-w-[280px]"
+            className="mt-4 w-full max-w-[280px] bg-transparent"
             onClick={() => fileInputRef.current?.click()}
             disabled={uploadingPhoto}
           >
@@ -252,9 +257,9 @@ export default function PlayerProfilePage() {
               )}
             </Button>
           )}
-           <Button
+          <Button
             variant="outline"
-            className="mb-4 w-full max-w-[280px]"
+            className="mb-4 w-full max-w-[280px] bg-transparent"
             onClick={() => setShowPhotoInstructions(!showPhotoInstructions)}
           >
             {showPhotoInstructions ? <EyeOff className="mr-2 h-4 w-4" /> : <Eye className="mr-2 h-4 w-4" />}
@@ -321,7 +326,7 @@ export default function PlayerProfilePage() {
         <div className="md:col-span-2">
           <div className="mb-6">
             <h1 className="text-3xl font-bold">{user.name}</h1>
-            <div className="flex items-center text-muted-foreground mt-1">
+            <div className="flex items-center text-muted-foreground mt-1 flex-wrap gap-2">
               <Badge variant="outline" className="mr-2">
                 {user.position || "Pozisyon belirtilmemiş"}
               </Badge>
@@ -332,6 +337,11 @@ export default function PlayerProfilePage() {
               ) : (
                 <Badge variant="outline" className="bg-yellow-50 text-yellow-700 border-yellow-200">
                   Onaylanmamış
+                </Badge>
+              )}
+              {unpaidMatchesCount > 0 && (
+                <Badge variant="outline" className="bg-red-50 text-red-700 border-red-200">
+                  {unpaidMatchesCount} Ödenmemiş Maç
                 </Badge>
               )}
             </div>
@@ -370,7 +380,7 @@ export default function PlayerProfilePage() {
                 <CardContent>
                   {playerStats ? (
                     <div className="space-y-6">
-                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
                         <div className="bg-gray-50 dark:bg-gray-800 p-4 rounded-lg text-center">
                           <div className="text-muted-foreground text-sm mb-1">Toplam Maç</div>
                           <div className="text-3xl font-bold">{playerStats.totalMatches}</div>
@@ -381,6 +391,12 @@ export default function PlayerProfilePage() {
                             {playerStats.wins}
                           </div>
                         </div>
+                        <div className="bg-yellow-50 dark:bg-yellow-900/20 p-4 rounded-lg text-center">
+                          <div className="text-yellow-600 dark:text-yellow-400 text-sm mb-1">Beraberlik</div>
+                          <div className="text-3xl font-bold text-yellow-600 dark:text-yellow-400">
+                            {playerStats.draws}
+                          </div>
+                        </div>
                         <div className="bg-red-50 dark:bg-red-900/20 p-4 rounded-lg text-center">
                           <div className="text-red-600 dark:text-red-400 text-sm mb-1">Mağlubiyet</div>
                           <div className="text-3xl font-bold text-red-600 dark:text-red-400">{playerStats.losses}</div>
@@ -389,12 +405,31 @@ export default function PlayerProfilePage() {
                       <div className="mt-6">
                         <div className="flex justify-between mb-2">
                           <span className="text-sm font-medium">Galibiyet Oranı</span>
-                          <span className="text-sm font-medium">{playerStats.winRate}%</span>
+                          <span className="text-sm font-medium flex gap-2">
+                            <span className="text-green-600">{playerStats.winRate}%</span>
+                            <span className="text-yellow-500">
+                              {((playerStats.draws / playerStats.totalMatches) * 100).toFixed(0)}%
+                            </span>
+                            <span className="text-red-600">
+                              {((playerStats.losses / playerStats.totalMatches) * 100).toFixed(0)}%
+                            </span>
+                          </span>
                         </div>
-                        <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2.5">
+                        <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2.5 overflow-hidden flex">
                           <div
-                            className="bg-green-600 h-2.5 rounded-full"
+                            className="bg-green-600 h-2.5"
                             style={{ width: `${playerStats.winRate}%` }}
+                            title={`Galip: ${playerStats.wins}`}
+                          ></div>
+                          <div
+                            className="bg-yellow-500 h-2.5"
+                            style={{ width: `${(playerStats.draws / playerStats.totalMatches) * 100}%` }}
+                            title={`Beraberlik: ${playerStats.draws}`}
+                          ></div>
+                          <div
+                            className="bg-red-600 h-2.5"
+                            style={{ width: `${(playerStats.losses / playerStats.totalMatches) * 100}%` }}
+                            title={`Mağlubiyet: ${playerStats.losses}`}
                           ></div>
                         </div>
                       </div>
@@ -408,6 +443,10 @@ export default function PlayerProfilePage() {
                           <div className="flex justify-between text-sm mb-1">
                             <span className="text-muted-foreground">Galibiyet:</span>
                             <span>{playerStats.teamAWins}</span>
+                          </div>
+                          <div className="flex justify-between text-sm mb-1">
+                            <span className="text-muted-foreground">Beraberlik:</span>
+                            <span>{playerStats.teamADraws}</span>
                           </div>
                           <div className="flex justify-between text-sm">
                             <span className="text-muted-foreground">Oran:</span>
@@ -423,6 +462,10 @@ export default function PlayerProfilePage() {
                           <div className="flex justify-between text-sm mb-1">
                             <span className="text-muted-foreground">Galibiyet:</span>
                             <span>{playerStats.teamBWins}</span>
+                          </div>
+                          <div className="flex justify-between text-sm mb-1">
+                            <span className="text-muted-foreground">Beraberlik:</span>
+                            <span>{playerStats.teamBDraws}</span>
                           </div>
                           <div className="flex justify-between text-sm">
                             <span className="text-muted-foreground">Oran:</span>
@@ -462,8 +505,8 @@ export default function PlayerProfilePage() {
                               </Button>
                             </Link>
                           </div>
-                          <div className="flex items-center justify-between mt-3">
-                            <div className="flex items-center">
+                          <div className="flex items-center justify-between mt-3 flex-wrap gap-2">
+                            <div className="flex items-center flex-wrap gap-2">
                               <Badge
                                 variant="outline"
                                 className={
@@ -475,26 +518,37 @@ export default function PlayerProfilePage() {
                                 Takım {match.team}
                               </Badge>
                               {match.result === "win" ? (
-                                <Badge className="ml-2 bg-green-500">
+                                <Badge className="bg-green-500">
                                   <Trophy className="mr-1 h-3 w-3" /> Galibiyet
                                 </Badge>
+                              ) : match.result === "draw" ? (
+                                <Badge className="bg-yellow-500">
+                                  <Minus className="mr-1 h-3 w-3" /> Beraberlik
+                                </Badge>
                               ) : match.result === "loss" ? (
-                                <Badge variant="destructive" className="ml-2">
+                                <Badge variant="destructive">
                                   <XCircle className="mr-1 h-3 w-3" /> Mağlubiyet
                                 </Badge>
                               ) : (
-                                <Badge variant="outline" className="ml-2">
-                                  Sonuçlanmadı
+                                <Badge variant="outline">Sonuçlanmadı</Badge>
+                              )}
+                              {match.hasPaid ? (
+                                <Badge className="bg-green-600">
+                                  <CheckCircle2 className="mr-1 h-3 w-3" /> Ödedi
+                                </Badge>
+                              ) : (
+                                <Badge variant="destructive">
+                                  <XCircle className="mr-1 h-3 w-3" /> Ödemedi
                                 </Badge>
                               )}
                             </div>
-                            {match.score && <div className="text-lg font-bold">{match.score}</div>}
+                            {match.score && <span className="text-sm font-medium">{match.score}</span>}
                           </div>
                         </div>
                       ))}
                     </div>
                   ) : (
-                    <div className="text-center py-8 text-muted-foreground">Henüz maç geçmişi bulunmamaktadır.</div>
+                    <div className="text-center py-8 text-muted-foreground">Henüz maç kaydı bulunmamaktadır.</div>
                   )}
                 </CardContent>
               </Card>

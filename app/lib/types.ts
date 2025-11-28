@@ -61,7 +61,7 @@ export type PlayerMatchSummary = {
   time: string
   team: Team
   hasPaid: boolean
-  result: "win" | "loss" | "unknown"
+  result: "win" | "draw" | "loss" | "unknown"
   score: string | null
 }
 
@@ -69,13 +69,16 @@ export type PlayerMatchSummary = {
 export type PlayerStats = {
   totalMatches: number
   wins: number
+  draws: number
   losses: number
   winRate: number
   teamAMatches: number
   teamAWins: number
+  teamADraws: number
   teamAWinRate: number
   teamBMatches: number
   teamBWins: number
+  teamBDraws: number
   teamBWinRate: number
 }
 
@@ -99,5 +102,7 @@ export type PlayerRankingStats = {
   name: string
   totalMatches: number
   wins: number
+  draws: number
+  losses: number
   winRate: number
 }

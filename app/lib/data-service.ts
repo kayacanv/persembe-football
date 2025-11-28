@@ -627,7 +627,10 @@ export async function getAllPlayerStats(minMatches = 2): Promise<PlayerRankingSt
     return []
   }
 
-  const playerStatsMap = new Map<string, { name: string; totalMatches: number; wins: number }>()
+  const playerStatsMap = new Map<
+    string,
+    { name: string; totalMatches: number; wins: number; draws: number; losses: number }
+  >()
 
   allMatchPlayers.forEach((mp) => {
     // Ensure mp, mp.users, and mp.matches are not null and scores are numbers
@@ -646,21 +649,21 @@ export async function getAllPlayerStats(minMatches = 2): Promise<PlayerRankingSt
 
     let stats = playerStatsMap.get(userId)
     if (!stats) {
-      stats = { name, totalMatches: 0, wins: 0 }
+      stats = { name, totalMatches: 0, wins: 0, draws: 0, losses: 0 }
     }
 
     stats.totalMatches += 1
 
-    let isWin = false
-    if (mp.team === "A" && mp.matches.score_a > mp.matches.score_b) {
-      isWin = true
+    if (mp.matches.score_a === mp.matches.score_b && mp.matches.score_a !== 0) {
+      stats.draws += 1
+    } else if (mp.team === "A" && mp.matches.score_a > mp.matches.score_b) {
+      stats.wins += 1
     } else if (mp.team === "B" && mp.matches.score_b > mp.matches.score_a) {
-      isWin = true
+      stats.wins += 1
+    } else {
+      stats.losses += 1
     }
 
-    if (isWin) {
-      stats.wins += 1
-    }
     playerStatsMap.set(userId, stats)
   })
 
@@ -672,6 +675,8 @@ export async function getAllPlayerStats(minMatches = 2): Promise<PlayerRankingSt
         name: stats.name,
         totalMatches: stats.totalMatches,
         wins: stats.wins,
+        draws: stats.draws,
+        losses: stats.losses,
         winRate: stats.totalMatches > 0 ? Math.round((stats.wins / stats.totalMatches) * 100) : 0,
       })
     }

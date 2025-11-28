@@ -256,28 +256,65 @@ export default function HomePage() {
                   <div>Sıralama yükleniyor...</div>
                 </div>
               ) : playerRankings.length > 0 ? (
-                <div className="space-y-3">
-                  {playerRankings.map((player, index) => (
-                    <div
-                      key={player.userId}
-                      className="flex items-center justify-between p-3 border rounded-lg hover:bg-muted/50 transition-colors"
-                    >
-                      <div className="flex items-center">
-                        <span className="text-sm font-medium mr-3 text-muted-foreground w-6 text-center">
-                          {index + 1}.
-                        </span>
-                        <Link href={`/profile/${player.userId}`} className="hover:underline">
-                          <span className="font-medium">{player.name}</span>
-                        </Link>
-                      </div>
-                      <div className="text-right">
-                        <div className="text-sm font-semibold text-primary">{player.winRate}% G</div>
-                        <div className="text-xs text-muted-foreground">
-                          {player.totalMatches} Maç ({player.wins}G)
+                <div className="space-y-4">
+                  {playerRankings.map((player, index) => {
+                    const totalMatches = player.totalMatches || 1
+                    const winRate = (player.wins / totalMatches) * 100 || 0
+                    const drawRate = (player.draws / totalMatches) * 100 || 0
+                    const lossRate = (player.losses / totalMatches) * 100 || 0
+
+                    return (
+                      <div
+                        key={player.userId}
+                        className="flex items-center justify-between p-3 border rounded-lg hover:bg-muted/50 transition-colors"
+                      >
+                        <div className="flex-1">
+                          <div className="flex items-center mb-2">
+                            <span className="text-sm font-medium mr-3 text-muted-foreground w-6 text-center">
+                              {index + 1}.
+                            </span>
+                            <Link href={`/profile/${player.userId}`} className="hover:underline">
+                              <span className="font-medium">{player.name}</span>
+                            </Link>
+                          </div>
+                          <div className="flex items-center gap-2 ml-9">
+                            <div className="flex-1 h-2 bg-muted rounded-full overflow-hidden flex">
+                              {winRate > 0 && (
+                                <div
+                                  className="bg-green-500 h-full"
+                                  style={{ width: `${winRate}%` }}
+                                  title={`${player.wins} Galibiyet`}
+                                />
+                              )}
+                              {drawRate > 0 && (
+                                <div
+                                  className="bg-yellow-500 h-full"
+                                  style={{ width: `${drawRate}%` }}
+                                  title={`${player.draws} Beraberlik`}
+                                />
+                              )}
+                              {lossRate > 0 && (
+                                <div
+                                  className="bg-red-500 h-full"
+                                  style={{ width: `${lossRate}%` }}
+                                  title={`${player.losses} Yenilgi`}
+                                />
+                              )}
+                            </div>
+                            <span className="text-xs font-semibold text-muted-foreground w-12 text-right">
+                              {player.winRate}%
+                            </span>
+                          </div>
+                        </div>
+                        <div className="text-right ml-2">
+                          <div className="text-sm font-semibold text-primary">
+                            {player.wins}G - {player.draws}B - {player.losses}Y
+                          </div>
+                          <div className="text-xs text-muted-foreground">{player.totalMatches} Maç</div>
                         </div>
                       </div>
-                    </div>
-                  ))}
+                    )
+                  })}
                 </div>
               ) : (
                 <div className="text-center py-6 text-muted-foreground">
