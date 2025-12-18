@@ -532,6 +532,27 @@ export async function getActivePlayerCount(matchId: string): Promise<number> {
   return count || 0
 }
 
+export async function getUnpaidPlayerCount(matchId: string): Promise<number> {
+  const supabase = getSupabaseBrowserClient()
+  if (!supabase) {
+    console.error("Supabase client is not initialized")
+    return 0
+  }
+  const { count, error } = await supabase
+    .from("match_players")
+    .select("id", { count: "exact" })
+    .eq("match_id", matchId)
+    .eq("status", "active")
+    .eq("has_paid", false)
+
+  if (error) {
+    console.error("Error counting unpaid players:", error)
+    return 0
+  }
+
+  return count || 0
+}
+
 // Update the balanceTeamsByPower function to consider already assigned players
 export function balanceTeamsByPower(
   unassignedPlayers: PlayerWithDetails[],

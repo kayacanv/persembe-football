@@ -1,22 +1,24 @@
 "use client"
 
+import { Toaster } from "@/components/ui/sonner"
+
 import { useEffect, useState } from "react"
 import { useSearchParams } from "next/navigation"
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Calendar, Clock, ArrowRight, Plus, Users, BarChart3, Loader2 } from "lucide-react"
+import { Calendar, Clock, ArrowRight, Plus, Users, BarChart3, Loader2, AlertCircle } from "lucide-react"
 import {
   getActiveMatch,
   getPastMatches,
   createNextThursdayMatch,
   getAllPlayerStats,
   getNextThursday,
+  getUnpaidPlayerCount, // Import new function
 } from "./lib/data-service"
 import type { Match, PlayerRankingStats } from "./lib/types"
 import { toast } from "@/components/ui/use-toast"
-import { Toaster } from "@/components/ui/toaster"
 import { getSupabaseBrowserClient } from "./lib/supabase-browser"
 import {
   Dialog,
@@ -35,6 +37,7 @@ export default function HomePage() {
   const [playerRankings, setPlayerRankings] = useState<PlayerRankingStats[]>([])
   const [loadingMatches, setLoadingMatches] = useState(true)
   const [loadingRankings, setLoadingRankings] = useState(true)
+  const [unpaidCounts, setUnpaidCounts] = useState<Record<string, number>>({})
 
   // Add state for price input and dialog
   const [createMatchDialogOpen, setCreateMatchDialogOpen] = useState(false)
@@ -100,6 +103,16 @@ export default function HomePage() {
         setActiveMatch(active)
         setPastMatches(past)
         setPlayerRankings(rankings)
+
+        const allMatches = [active, ...past].filter(Boolean) as Match[]
+        const counts: Record<string, number> = {}
+        await Promise.all(
+          allMatches.map(async (match) => {
+            const count = await getUnpaidPlayerCount(match.id)
+            counts[match.id] = count
+          }),
+        )
+        setUnpaidCounts(counts)
       } catch (error) {
         console.error("Error loading data:", error)
         toast({
@@ -167,7 +180,13 @@ export default function HomePage() {
                 </CardContent>
               </Card>
             ) : activeMatch ? (
-              <Card className="mb-4">
+              <Card className="mb-4 relative">
+                {unpaidCounts[activeMatch.id] > 0 && (
+                  <div className="absolute top-3 right-3 bg-red-500 text-white text-xs font-semibold px-2.5 py-1 rounded-full flex items-center gap-1 shadow-sm">
+                    <AlertCircle className="h-3 w-3" />
+                    {unpaidCounts[activeMatch.id]} ödenmedi
+                  </div>
+                )}
                 <CardHeader className="pb-2">
                   <CardTitle>{formatReadableDate(activeMatch.date)}</CardTitle>
                   <CardDescription>
@@ -215,7 +234,13 @@ export default function HomePage() {
             ) : pastMatches.length > 0 ? (
               <div className="space-y-4">
                 {pastMatches.map((match) => (
-                  <Card key={match.id}>
+                  <Card key={match.id} className="relative">
+                    {unpaidCounts[match.id] > 0 && (
+                      <div className="absolute top-3 right-3 bg-red-500 text-white text-xs font-semibold px-2.5 py-1 rounded-full flex items-center gap-1 shadow-sm">
+                        <AlertCircle className="h-3 w-3" />
+                        {unpaidCounts[match.id]} ödenmedi
+                      </div>
+                    )}
                     <CardHeader className="pb-2">
                       <CardTitle>{formatReadableDate(match.date)}</CardTitle>
                       <CardDescription>
