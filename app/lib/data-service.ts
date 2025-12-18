@@ -434,7 +434,7 @@ export async function getActiveMatch(): Promise<Match | null> {
 }
 
 // Get past matches (done)
-export async function getPastMatches(limit = 50): Promise<Match[]> {
+export async function getPastMatches(limit = 10): Promise<Match[]> {
   const supabase = getSupabaseBrowserClient()
   if (!supabase) {
     console.error("Supabase client is not initialized")
