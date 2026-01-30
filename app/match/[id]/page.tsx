@@ -40,6 +40,8 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import { Checkbox } from "@/components/ui/checkbox"
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
+import { Calendar as CalendarComponent } from "@/components/ui/calendar"
 import type { Match, MatchStatus, PlayerWithDetails } from "@/app/lib/types"
 import {
   getMatchById,
@@ -121,7 +123,7 @@ export default function MatchPage({ params }: { params: { id: string } }) {
 
   // Date edit state
   const [isEditingDate, setIsEditingDate] = useState(false)
-  const [editedDate, setEditedDate] = useState("")
+  const [editedDate, setEditedDate] = useState<Date | undefined>(undefined)
   const [savingDate, setSavingDate] = useState(false)
 
   // Registration state
@@ -390,7 +392,7 @@ export default function MatchPage({ params }: { params: { id: string } }) {
     if (!editedDate) {
       toast({
         title: "Hata",
-        description: "Lutfen gecerli bir tarih girin.",
+        description: "Lutfen gecerli bir tarih secin.",
         variant: "destructive",
       })
       return
@@ -398,10 +400,16 @@ export default function MatchPage({ params }: { params: { id: string } }) {
 
     try {
       setSavingDate(true)
-      const result = await updateMatchDate(matchId, editedDate)
+      // Convert Date to DD.MM.YYYY format
+      const day = String(editedDate.getDate()).padStart(2, "0")
+      const month = String(editedDate.getMonth() + 1).padStart(2, "0")
+      const year = editedDate.getFullYear()
+      const formattedDate = `${day}.${month}.${year}`
+
+      const result = await updateMatchDate(matchId, formattedDate)
 
       if (result.success) {
-        setMatch((prev) => (prev ? { ...prev, date: editedDate } : null))
+        setMatch((prev) => (prev ? { ...prev, date: formattedDate } : null))
         setIsEditingDate(false)
         toast({
           title: "Basarili",
@@ -1129,17 +1137,21 @@ export default function MatchPage({ params }: { params: { id: string } }) {
       <div className="flex items-center gap-2 mb-4">
         {isAdmin && isEditingDate ? (
           <div className="flex items-center gap-2 flex-1">
-            <Input
-              type="text"
-              value={editedDate}
-              onChange={(e) => setEditedDate(e.target.value)}
-              placeholder="GG.AA.YYYY"
-              className="text-lg font-bold w-32"
-            />
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button variant="outline" className="bg-transparent w-fit text-lg font-bold">
+                  <Calendar className="mr-2 h-5 w-5" />
+                  {editedDate ? format(editedDate, "dd MMMM yyyy", { locale: tr }) : "Tarih secin"}
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-auto p-0" align="start">
+                <CalendarComponent mode="single" selected={editedDate} onSelect={setEditedDate} initialFocus />
+              </PopoverContent>
+            </Popover>
             <Button
               size="sm"
               onClick={handleDateUpdate}
-              disabled={savingDate}
+              disabled={savingDate || !editedDate}
               className="bg-green-600 hover:bg-green-700"
             >
               {savingDate ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}
@@ -1161,7 +1173,12 @@ export default function MatchPage({ params }: { params: { id: string } }) {
                 size="sm"
                 variant="ghost"
                 onClick={() => {
-                  setEditedDate(match?.date || "")
+                  // Convert DD.MM.YYYY to Date object
+                  if (match?.date) {
+                    const [day, month, year] = match.date.split(".")
+                    const dateObj = new Date(Number.parseInt(year), Number.parseInt(month) - 1, Number.parseInt(day))
+                    setEditedDate(dateObj)
+                  }
                   setIsEditingDate(true)
                 }}
               >
