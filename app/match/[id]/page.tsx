@@ -25,6 +25,8 @@ import {
   CreditCard,
   Save,
   UserPlus,
+  Pencil,
+  Calendar,
 } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { toast } from "@/components/ui/use-toast"
@@ -38,6 +40,8 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import { Checkbox } from "@/components/ui/checkbox"
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
+import { Calendar as CalendarComponent } from "@/components/ui/calendar"
 import type { Match, MatchStatus, PlayerWithDetails } from "@/app/lib/types"
 import {
   getMatchById,
@@ -52,7 +56,7 @@ import {
 } from "@/app/lib/data-service"
 import Link from "next/link"
 import { createCheckoutSession, verifyPaymentStatus, confirmManualPayment } from "@/app/actions/stripe-actions"
-import { updateMatchScore } from "@/app/actions/match-actions"
+import { updateMatchScore, updateMatchDate } from "@/app/actions/match-actions"
 import { getStripe } from "@/app/lib/stripe"
 import type { User as UserType } from "@/app/lib/types"
 import { format, formatDistanceToNow } from "date-fns"
@@ -116,6 +120,11 @@ export default function MatchPage({ params }: { params: { id: string } }) {
   const [scoreA, setScoreA] = useState<number | undefined>(undefined)
   const [scoreB, setScoreB] = useState<number | undefined>(undefined)
   const [savingScore, setSavingScore] = useState(false)
+
+  // Date edit state
+  const [isEditingDate, setIsEditingDate] = useState(false)
+  const [editedDate, setEditedDate] = useState<Date | undefined>(undefined)
+  const [savingDate, setSavingDate] = useState(false)
 
   // Registration state
   const [name, setName] = useState("")
@@ -375,6 +384,53 @@ export default function MatchPage({ params }: { params: { id: string } }) {
         description: "Durum güncellenirken bir hata oluştu.",
         variant: "destructive",
       })
+    }
+  }
+
+  // Handle date update
+  const handleDateUpdate = async () => {
+    if (!editedDate) {
+      toast({
+        title: "Hata",
+        description: "Lutfen gecerli bir tarih secin.",
+        variant: "destructive",
+      })
+      return
+    }
+
+    try {
+      setSavingDate(true)
+      // Convert Date to DD.MM.YYYY format
+      const day = String(editedDate.getDate()).padStart(2, "0")
+      const month = String(editedDate.getMonth() + 1).padStart(2, "0")
+      const year = editedDate.getFullYear()
+      const formattedDate = `${day}.${month}.${year}`
+
+      const result = await updateMatchDate(matchId, formattedDate)
+
+      if (result.success) {
+        setMatch((prev) => (prev ? { ...prev, date: formattedDate } : null))
+        setIsEditingDate(false)
+        toast({
+          title: "Basarili",
+          description: "Mac tarihi guncellendi.",
+        })
+      } else {
+        toast({
+          title: "Hata",
+          description: result.error || "Tarih guncellenirken bir hata olustu.",
+          variant: "destructive",
+        })
+      }
+    } catch (error) {
+      console.error("Error updating date:", error)
+      toast({
+        title: "Hata",
+        description: "Tarih guncellenirken bir hata olustu.",
+        variant: "destructive",
+      })
+    } finally {
+      setSavingDate(false)
     }
   }
 
@@ -1077,12 +1133,69 @@ export default function MatchPage({ params }: { params: { id: string } }) {
         )}
       </div>
 
-      <h1 className="text-2xl font-bold mb-4">{match ? formatReadableDate(match.date) : "Perşembe Halısaha"}</h1>
+      {/* Title with editable date for admin */}
+      <div className="flex items-center gap-2 mb-4">
+        {isAdmin && isEditingDate ? (
+          <div className="flex items-center gap-2 flex-1">
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button variant="outline" className="bg-transparent w-fit text-lg font-bold">
+                  <Calendar className="mr-2 h-5 w-5" />
+                  {editedDate ? format(editedDate, "dd MMMM yyyy", { locale: tr }) : "Tarih secin"}
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-auto p-0" align="start">
+                <CalendarComponent mode="single" selected={editedDate} onSelect={setEditedDate} initialFocus />
+              </PopoverContent>
+            </Popover>
+            <Button
+              size="sm"
+              onClick={handleDateUpdate}
+              disabled={savingDate || !editedDate}
+              className="bg-green-600 hover:bg-green-700"
+            >
+              {savingDate ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              className="bg-transparent"
+              onClick={() => setIsEditingDate(false)}
+            >
+              <X className="h-4 w-4" />
+            </Button>
+          </div>
+        ) : (
+          <>
+            <h1 className="text-2xl font-bold">{match ? formatReadableDate(match.date) : "Persembe Halisaha"}</h1>
+            {isAdmin && (
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={() => {
+                  // Convert DD.MM.YYYY to Date object
+                  if (match?.date) {
+                    const [day, month, year] = match.date.split(".")
+                    const dateObj = new Date(Number.parseInt(year), Number.parseInt(month) - 1, Number.parseInt(day))
+                    setEditedDate(dateObj)
+                  }
+                  setIsEditingDate(true)
+                }}
+              >
+                <Pencil className="h-4 w-4" />
+              </Button>
+            )}
+          </>
+        )}
+      </div>
 
       {/* Match Info Card */}
       <Card className="mb-6">
         <CardHeader className="pb-2">
-          <CardTitle>{formatReadableDate(match.date)} - Maç Bilgileri</CardTitle>
+          <CardTitle className="flex items-center gap-2">
+            <Calendar className="h-5 w-5" />
+            {formatReadableDate(match.date)} - Mac Bilgileri
+          </CardTitle>
           <CardDescription>
             {match.status === "registering"
               ? "Kayıt aşamasında"
