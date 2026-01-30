@@ -25,6 +25,8 @@ import {
   CreditCard,
   Save,
   UserPlus,
+  Pencil,
+  Calendar,
 } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { toast } from "@/components/ui/use-toast"
@@ -52,7 +54,7 @@ import {
 } from "@/app/lib/data-service"
 import Link from "next/link"
 import { createCheckoutSession, verifyPaymentStatus, confirmManualPayment } from "@/app/actions/stripe-actions"
-import { updateMatchScore } from "@/app/actions/match-actions"
+import { updateMatchScore, updateMatchDate } from "@/app/actions/match-actions"
 import { getStripe } from "@/app/lib/stripe"
 import type { User as UserType } from "@/app/lib/types"
 import { format, formatDistanceToNow } from "date-fns"
@@ -116,6 +118,11 @@ export default function MatchPage({ params }: { params: { id: string } }) {
   const [scoreA, setScoreA] = useState<number | undefined>(undefined)
   const [scoreB, setScoreB] = useState<number | undefined>(undefined)
   const [savingScore, setSavingScore] = useState(false)
+
+  // Date edit state
+  const [isEditingDate, setIsEditingDate] = useState(false)
+  const [editedDate, setEditedDate] = useState("")
+  const [savingDate, setSavingDate] = useState(false)
 
   // Registration state
   const [name, setName] = useState("")
@@ -375,6 +382,47 @@ export default function MatchPage({ params }: { params: { id: string } }) {
         description: "Durum güncellenirken bir hata oluştu.",
         variant: "destructive",
       })
+    }
+  }
+
+  // Handle date update
+  const handleDateUpdate = async () => {
+    if (!editedDate) {
+      toast({
+        title: "Hata",
+        description: "Lutfen gecerli bir tarih girin.",
+        variant: "destructive",
+      })
+      return
+    }
+
+    try {
+      setSavingDate(true)
+      const result = await updateMatchDate(matchId, editedDate)
+
+      if (result.success) {
+        setMatch((prev) => (prev ? { ...prev, date: editedDate } : null))
+        setIsEditingDate(false)
+        toast({
+          title: "Basarili",
+          description: "Mac tarihi guncellendi.",
+        })
+      } else {
+        toast({
+          title: "Hata",
+          description: result.error || "Tarih guncellenirken bir hata olustu.",
+          variant: "destructive",
+        })
+      }
+    } catch (error) {
+      console.error("Error updating date:", error)
+      toast({
+        title: "Hata",
+        description: "Tarih guncellenirken bir hata olustu.",
+        variant: "destructive",
+      })
+    } finally {
+      setSavingDate(false)
     }
   }
 
@@ -1077,12 +1125,60 @@ export default function MatchPage({ params }: { params: { id: string } }) {
         )}
       </div>
 
-      <h1 className="text-2xl font-bold mb-4">{match ? formatReadableDate(match.date) : "Perşembe Halısaha"}</h1>
+      {/* Title with editable date for admin */}
+      <div className="flex items-center gap-2 mb-4">
+        {isAdmin && isEditingDate ? (
+          <div className="flex items-center gap-2 flex-1">
+            <Input
+              type="text"
+              value={editedDate}
+              onChange={(e) => setEditedDate(e.target.value)}
+              placeholder="GG.AA.YYYY"
+              className="text-lg font-bold w-32"
+            />
+            <Button
+              size="sm"
+              onClick={handleDateUpdate}
+              disabled={savingDate}
+              className="bg-green-600 hover:bg-green-700"
+            >
+              {savingDate ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              className="bg-transparent"
+              onClick={() => setIsEditingDate(false)}
+            >
+              <X className="h-4 w-4" />
+            </Button>
+          </div>
+        ) : (
+          <>
+            <h1 className="text-2xl font-bold">{match ? formatReadableDate(match.date) : "Persembe Halisaha"}</h1>
+            {isAdmin && (
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={() => {
+                  setEditedDate(match?.date || "")
+                  setIsEditingDate(true)
+                }}
+              >
+                <Pencil className="h-4 w-4" />
+              </Button>
+            )}
+          </>
+        )}
+      </div>
 
       {/* Match Info Card */}
       <Card className="mb-6">
         <CardHeader className="pb-2">
-          <CardTitle>{formatReadableDate(match.date)} - Maç Bilgileri</CardTitle>
+          <CardTitle className="flex items-center gap-2">
+            <Calendar className="h-5 w-5" />
+            {formatReadableDate(match.date)} - Mac Bilgileri
+          </CardTitle>
           <CardDescription>
             {match.status === "registering"
               ? "Kayıt aşamasında"
