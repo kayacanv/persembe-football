@@ -803,16 +803,34 @@ export default function MatchPage({ params }: { params: { id: string } }) {
     return `https://revolut.me/kayacanv/gbp${priceFormatted}/${encodedName}%20pitch%20fee`
   }
 
-  // Generate a clean, locked payment reference for bank transfers
-  // e.g. FC-EREN-29MAY
-  const getBankReference = () => {
-    if (!playerToPay) return "FC-PITCHFEE"
+  // Generate a dynamic Open Banking deep link + locked payment reference.
+  // The reference encodes the player and date, e.g. FC-EREN-29MAY,
+  // so incoming Faster Payments map back to the right player/match.
+  const generateStarlingPayLink = () => {
+    const mySortCode = "608371" // Starling Sort Code
+    const myAccountNumber = "81606119" // Starling Account Number
+    const myName = "Kayacan Vesek"
+    const amount = match?.price ?? 0
+
     const today = new Date()
       .toLocaleDateString("en-GB", { day: "2-digit", month: "short" })
       .replace(/ /g, "")
       .toUpperCase()
-    const cleanName = playerToPay.name.toUpperCase().replace(/[^A-Z0-9]/g, "")
-    return `FC-${cleanName}-${today}`
+
+    const cleanName = playerToPay ? playerToPay.name.toUpperCase().replace(/[^A-Z0-9]/g, "") : "PITCHFEE"
+    const reference = `FC-${cleanName}-${today}`
+
+    // Standardised UK Universal Open Banking deep link. The device's OS
+    // hands this off to the user's banking app as an outbound payment.
+    const universalBankLink =
+      `https://www.bankofapis.com/pay?` +
+      `to=${encodeURIComponent(myName)}` +
+      `&sort=${mySortCode}` +
+      `&acc=${myAccountNumber}` +
+      `&amount=${amount.toFixed(2)}` +
+      `&ref=${encodeURIComponent(reference)}`
+
+    return { universalBankLink, reference }
   }
 
   // Copy text to clipboard with a toast confirmation
@@ -1614,48 +1632,51 @@ export default function MatchPage({ params }: { params: { id: string } }) {
                 </div>
               </TabsContent>
 
-              {/* Bank Transfer Payment Tab */}
+              {/* Bank (Open Banking deep link) Payment Tab */}
               <TabsContent value="bank" className="space-y-4">
                 <div className="p-4 bg-gray-50 dark:bg-gray-900 rounded-lg border dark:border-gray-800">
                   <div className="text-center mb-4">
-                    <p className="font-medium mb-1">Banka Havalesi ile ödeme</p>
+                    <p className="font-medium mb-1">Banka uygulamanız ile ödeyin</p>
                     <p className="text-sm text-muted-foreground mb-3">
-                      Aşağıdaki hesap bilgilerini kullanarak UK Faster Payments ile ödeme yapın.
+                      Aşağıdaki butona dokunun; banka uygulamanız tutar ve referans önceden doldurulmuş şekilde açılır.
                     </p>
                     <p className="text-lg font-bold text-green-600 mb-2">£{match?.price.toFixed(2)}</p>
                   </div>
 
-                  <div className="space-y-2">
-                    {[
-                      { label: "Hesap Adı", value: "Kayacan Vesek" },
-                      { label: "Hesap Numarası", value: "81606119" },
-                      { label: "Sort Code", value: "60-83-71" },
-                      { label: "Referans", value: getBankReference() },
-                    ].map((item) => (
-                      <div
-                        key={item.label}
-                        className="flex items-center justify-between gap-2 p-2 rounded-md bg-background border"
-                      >
-                        <div className="text-left min-w-0">
-                          <p className="text-xs text-muted-foreground">{item.label}</p>
-                          <p className="text-sm font-semibold truncate">{item.value}</p>
-                        </div>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-8 w-8 shrink-0"
-                          onClick={() => copyBankValue(item.label, item.value)}
-                          aria-label={`${item.label} kopyala`}
-                        >
-                          <Copy className="h-4 w-4" />
+                  {(() => {
+                    const { universalBankLink, reference } = generateStarlingPayLink()
+                    return (
+                      <>
+                        <Button asChild className="w-full bg-green-600 hover:bg-green-700">
+                          <a href={universalBankLink} target="_blank" rel="noopener noreferrer">
+                            <Building2 className="mr-2 h-4 w-4" />
+                            Banka Uygulamasında Aç
+                          </a>
                         </Button>
-                      </div>
-                    ))}
-                  </div>
 
-                  <p className="text-xs text-muted-foreground mt-3">
-                    Lütfen ödeme açıklamasına yukarıdaki referansı yazın; bu, ödemenizin doğru maça işlenmesini sağlar.
-                  </p>
+                        <div className="flex items-center justify-between gap-2 p-2 mt-3 rounded-md bg-background border">
+                          <div className="text-left min-w-0">
+                            <p className="text-xs text-muted-foreground">Ödeme Referansı</p>
+                            <p className="text-sm font-semibold truncate">{reference}</p>
+                          </div>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8 shrink-0"
+                            onClick={() => copyBankValue("Referans", reference)}
+                            aria-label="Referansı kopyala"
+                          >
+                            <Copy className="h-4 w-4" />
+                          </Button>
+                        </div>
+
+                        <p className="text-xs text-muted-foreground mt-3">
+                          Buton çalışmazsa, ödeme açıklamasına yukarıdaki referansı yazdığınızdan emin olun; bu,
+                          ödemenizin doğru maça işlenmesini sağlar.
+                        </p>
+                      </>
+                    )
+                  })()}
 
                   <div className="flex items-center space-x-2 mt-4 p-2 rounded-md bg-background border">
                     <Checkbox
