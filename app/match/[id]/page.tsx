@@ -27,6 +27,8 @@ import {
   UserPlus,
   Pencil,
   Calendar,
+  Building2,
+  Copy,
 } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { toast } from "@/components/ui/use-toast"
@@ -147,7 +149,7 @@ export default function MatchPage({ params }: { params: { id: string } }) {
   const [playerToPay, setPlayerToPay] = useState<PlayerWithDetails | null>(null)
   const [processingPayment, setProcessingPayment] = useState(false)
   const [stripeError, setStripeError] = useState<string | null>(null)
-  const [paymentMethod, setPaymentMethod] = useState<"stripe" | "revolut">("revolut")
+  const [paymentMethod, setPaymentMethod] = useState<"stripe" | "revolut" | "bank">("revolut")
   const [paidWithRevolut, setPaidWithRevolut] = useState(false)
   const [confirmingManualPayment, setConfirmingManualPayment] = useState(false)
 
@@ -799,6 +801,35 @@ export default function MatchPage({ params }: { params: { id: string } }) {
     const encodedName = encodeURIComponent(playerToPay.name.toLowerCase())
 
     return `https://revolut.me/kayacanv/gbp${priceFormatted}/${encodedName}%20pitch%20fee`
+  }
+
+  // Generate a clean, locked payment reference for bank transfers
+  // e.g. FC-EREN-29MAY
+  const getBankReference = () => {
+    if (!playerToPay) return "FC-PITCHFEE"
+    const today = new Date()
+      .toLocaleDateString("en-GB", { day: "2-digit", month: "short" })
+      .replace(/ /g, "")
+      .toUpperCase()
+    const cleanName = playerToPay.name.toUpperCase().replace(/[^A-Z0-9]/g, "")
+    return `FC-${cleanName}-${today}`
+  }
+
+  // Copy text to clipboard with a toast confirmation
+  const copyBankValue = async (label: string, value: string) => {
+    try {
+      await navigator.clipboard.writeText(value)
+      toast({
+        title: "Kopyalandı",
+        description: `${label} panoya kopyalandı.`,
+      })
+    } catch {
+      toast({
+        title: "Kopyalanamadı",
+        description: "Lütfen değeri manuel olarak kopyalayın.",
+        variant: "destructive",
+      })
+    }
   }
 
   // Handle direct payment with Revolut
@@ -1516,13 +1547,19 @@ export default function MatchPage({ params }: { params: { id: string } }) {
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-4">
-            <Tabs value={paymentMethod} onValueChange={(value) => setPaymentMethod(value as "stripe" | "revolut")}>
-              <TabsList className="grid w-full grid-cols-2">
+            <Tabs
+              value={paymentMethod}
+              onValueChange={(value) => setPaymentMethod(value as "stripe" | "revolut" | "bank")}
+            >
+              <TabsList className="grid w-full grid-cols-3">
                 <TabsTrigger value="revolut">
                   <ExternalLink className="mr-2 h-4 w-4" /> Revolut
                 </TabsTrigger>
+                <TabsTrigger value="bank">
+                  <Building2 className="mr-2 h-4 w-4" /> Banka
+                </TabsTrigger>
                 <TabsTrigger value="stripe">
-                  <CreditCard className="mr-2 h-4 w-4" /> Kredi Kartı
+                  <CreditCard className="mr-2 h-4 w-4" /> Kart
                 </TabsTrigger>
               </TabsList>
 
@@ -1577,6 +1614,66 @@ export default function MatchPage({ params }: { params: { id: string } }) {
                 </div>
               </TabsContent>
 
+              {/* Bank Transfer Payment Tab */}
+              <TabsContent value="bank" className="space-y-4">
+                <div className="p-4 bg-gray-50 dark:bg-gray-900 rounded-lg border dark:border-gray-800">
+                  <div className="text-center mb-4">
+                    <p className="font-medium mb-1">Banka Havalesi ile ödeme</p>
+                    <p className="text-sm text-muted-foreground mb-3">
+                      Aşağıdaki hesap bilgilerini kullanarak UK Faster Payments ile ödeme yapın.
+                    </p>
+                    <p className="text-lg font-bold text-green-600 mb-2">£{match?.price.toFixed(2)}</p>
+                  </div>
+
+                  <div className="space-y-2">
+                    {[
+                      { label: "Hesap Adı", value: "Kayacan Vesek" },
+                      { label: "Hesap Numarası", value: "81606119" },
+                      { label: "Sort Code", value: "60-83-71" },
+                      { label: "Referans", value: getBankReference() },
+                    ].map((item) => (
+                      <div
+                        key={item.label}
+                        className="flex items-center justify-between gap-2 p-2 rounded-md bg-background border"
+                      >
+                        <div className="text-left min-w-0">
+                          <p className="text-xs text-muted-foreground">{item.label}</p>
+                          <p className="text-sm font-semibold truncate">{item.value}</p>
+                        </div>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8 shrink-0"
+                          onClick={() => copyBankValue(item.label, item.value)}
+                          aria-label={`${item.label} kopyala`}
+                        >
+                          <Copy className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    ))}
+                  </div>
+
+                  <p className="text-xs text-muted-foreground mt-3">
+                    Lütfen ödeme açıklamasına yukarıdaki referansı yazın; bu, ödemenizin doğru maça işlenmesini sağlar.
+                  </p>
+
+                  <div className="flex items-center space-x-2 mt-4 p-2 rounded-md bg-background border">
+                    <Checkbox
+                      id="paid-with-bank"
+                      checked={paidWithRevolut}
+                      onCheckedChange={(checked) => setPaidWithRevolut(checked as boolean)}
+                      className="data-[state=checked]:bg-primary data-[state=checked]:text-primary-foreground"
+                    />
+                    <label
+                      htmlFor="paid-with-bank"
+                      className="text-sm font-medium leading-none text-foreground peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+                    >
+                      Zaten ödeme yaptım
+                    </label>
+                  </div>
+                </div>
+              </TabsContent>
+
               {/* Stripe Payment Tab */}
               <TabsContent value="stripe" className="space-y-4">
                 {stripeError ? (
@@ -1621,7 +1718,7 @@ export default function MatchPage({ params }: { params: { id: string } }) {
             >
               İptal
             </Button>
-            {paymentMethod === "revolut" && (
+            {(paymentMethod === "revolut" || paymentMethod === "bank") && (
               <Button
                 onClick={handleManualPaymentConfirmation}
                 disabled={!paidWithRevolut || confirmingManualPayment}
