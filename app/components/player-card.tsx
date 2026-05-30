@@ -32,7 +32,7 @@ export default function PlayerCard({ player, isDragging }: PlayerCardProps) {
         isDragging ? "scale-105 z-50" : ""
       }`}
     >
-      <FifaCard user={player} compact className="pointer-events-none" />
+      <FifaCard user={player} compact showName className="pointer-events-none rounded-lg overflow-hidden shadow-md" />
     </div>
   )
 }

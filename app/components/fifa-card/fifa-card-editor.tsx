@@ -12,11 +12,22 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import { Loader2, Save, RotateCcw } from "lucide-react"
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from "@/components/ui/command"
+import { Loader2, Save, RotateCcw, Check, ChevronsUpDown } from "lucide-react"
 import { toast } from "@/components/ui/use-toast"
+import { cn } from "@/lib/utils"
 import FifaCard from "./fifa-card"
 import { userToCardData } from "./types"
 import { CARD_TIERS, CARD_TIER_ORDER } from "@/app/config/card-tiers"
+import { CLUBS, clubLogoPath, findClub } from "@/app/config/clubs"
 import { updateUserCard, type CardUpdate } from "@/app/lib/profile-service"
 import type { User } from "@/app/lib/types"
 
@@ -60,6 +71,8 @@ export default function FifaCardEditor({ user, onSaved }: FifaCardEditorProps) {
   const [position, setPosition] = useState(initial.position)
   const [tier, setTier] = useState(initial.tier)
   const [nation, setNation] = useState(initial.nation || "tr")
+  const [clubBadgeUrl, setClubBadgeUrl] = useState<string | null>(initial.clubBadgeUrl ?? null)
+  const [clubOpen, setClubOpen] = useState(false)
   const [stats, setStats] = useState(initial.stats)
   const [scale, setScale] = useState(initial.photo.scale)
   const [offsetX, setOffsetX] = useState(initial.photo.x)
@@ -81,14 +94,16 @@ export default function FifaCardEditor({ user, onSaved }: FifaCardEditorProps) {
       position,
       tier,
       nation,
+      clubBadgeUrl,
       stats,
       baked: isBaked && !unbaked,
       photo: { scale, x: offsetX, y: offsetY, fade },
     }),
-    [initial, overall, position, tier, nation, stats, scale, offsetX, offsetY, fade, isBaked, unbaked],
+    [initial, overall, position, tier, nation, clubBadgeUrl, stats, scale, offsetX, offsetY, fade, isBaked, unbaked],
   )
 
   const setStat = (key: StatKey, value: number) => setStats((s) => ({ ...s, [key]: value }))
+  const selectedClub = findClub(clubBadgeUrl)
 
   async function handleSave() {
     setSaving(true)
@@ -97,6 +112,7 @@ export default function FifaCardEditor({ user, onSaved }: FifaCardEditorProps) {
       card_position: position,
       card_tier: tier,
       card_nation: nation,
+      club_badge_url: clubBadgeUrl,
       card_pac: stats.pac,
       card_sho: stats.sho,
       card_pas: stats.pas,
@@ -196,6 +212,75 @@ export default function FifaCardEditor({ user, onSaved }: FifaCardEditorProps) {
                 </SelectContent>
               </Select>
             </div>
+          </div>
+
+          {/* Team (searchable) */}
+          <div className="space-y-2">
+            <Label>Takım</Label>
+            <Popover open={clubOpen} onOpenChange={setClubOpen}>
+              <PopoverTrigger asChild>
+                <Button
+                  type="button"
+                  variant="outline"
+                  role="combobox"
+                  aria-expanded={clubOpen}
+                  className="w-full justify-between font-normal"
+                >
+                  <span className="flex items-center gap-2 truncate">
+                    {selectedClub ? (
+                      <>
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img src={clubLogoPath(selectedClub.slug)} alt="" className="h-5 w-5 object-contain" />
+                        {selectedClub.name}
+                      </>
+                    ) : (
+                      <span className="text-muted-foreground">Takım seç</span>
+                    )}
+                  </span>
+                  <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-[--radix-popover-trigger-width] p-0" align="start">
+                <Command>
+                  <CommandInput placeholder="Takım ara..." />
+                  <CommandList>
+                    <CommandEmpty>Takım bulunamadı.</CommandEmpty>
+                    <CommandGroup>
+                      <CommandItem
+                        value="__none__"
+                        onSelect={() => {
+                          setClubBadgeUrl(null)
+                          setClubOpen(false)
+                        }}
+                      >
+                        <Check className={cn("mr-2 h-4 w-4", clubBadgeUrl ? "opacity-0" : "opacity-100")} />
+                        Takım yok
+                      </CommandItem>
+                      {CLUBS.map((club) => (
+                        <CommandItem
+                          key={club.slug}
+                          value={`${club.name} ${club.country}`}
+                          onSelect={() => {
+                            setClubBadgeUrl(clubLogoPath(club.slug))
+                            setClubOpen(false)
+                          }}
+                        >
+                          <Check
+                            className={cn(
+                              "mr-2 h-4 w-4",
+                              selectedClub?.slug === club.slug ? "opacity-100" : "opacity-0",
+                            )}
+                          />
+                          {/* eslint-disable-next-line @next/next/no-img-element */}
+                          <img src={clubLogoPath(club.slug)} alt="" className="mr-2 h-5 w-5 object-contain" />
+                          {club.name}
+                        </CommandItem>
+                      ))}
+                    </CommandGroup>
+                  </CommandList>
+                </Command>
+              </PopoverContent>
+            </Popover>
           </div>
 
           {/* Six stats */}

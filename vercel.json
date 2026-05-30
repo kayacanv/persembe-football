@@ -1,0 +1,8 @@
+{
+  "crons": [
+    {
+      "path": "/api/cron/starling-sync",
+      "schedule": "0 * * * *"
+    }
+  ]
+}

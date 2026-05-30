@@ -4,6 +4,14 @@ import { useEffect, useState } from "react"
 import { Loader2, Star, Trophy } from "lucide-react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
+import { Button } from "@/components/ui/button"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
 import { toast } from "@/components/ui/use-toast"
 import FifaCard from "@/app/components/fifa-card/fifa-card"
 import {
@@ -24,6 +32,7 @@ export default function MvpVoting({ match }: MvpVotingProps) {
   const [myVote, setMyVote] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
   const [voting, setVoting] = useState<string | null>(null)
+  const [pickerOpen, setPickerOpen] = useState(false)
 
   // Don't bother loading anything before voting opens.
   const active = window_.isOpen || window_.isClosed
@@ -56,6 +65,7 @@ export default function MvpVoting({ match }: MvpVotingProps) {
   async function handleVote(candidateId: string) {
     if (myVote || voting) return
     setVoting(candidateId)
+    setPickerOpen(false)
     // Optimistic: lock the choice and bump the tally immediately.
     setMyVote(candidateId)
     setCounts((prev) =>
@@ -153,56 +163,88 @@ export default function MvpVoting({ match }: MvpVotingProps) {
     )
   }
 
-  // --- Open: vote and/or watch the live tally. ---
+  // --- Open: show only the top 3, vote via a popup. ---
+  const top3 = counts.slice(0, 3)
+
   return (
     <Card>
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
           <Star className="h-5 w-5 text-yellow-500" /> Maçın MVP'si
         </CardTitle>
-        <CardDescription>{myVote ? "Oyun alındı — canlı sonuçlar" : "Maçın MVP'sini seç"}</CardDescription>
+        <CardDescription>{myVote ? "Oyun alındı — canlı sonuçlar" : "En çok oy alan 3 oyuncu"}</CardDescription>
       </CardHeader>
       <CardContent>
         <div className="space-y-2">
-          {counts.map((c) => {
+          {top3.map((c, i) => {
             const pct = totalVotes > 0 ? Math.round((c.votes / totalVotes) * 100) : 0
             const isMine = myVote === c.candidateId
             return (
-              <button
+              <div
                 key={c.candidateId}
-                type="button"
-                disabled={!!myVote || !!voting}
-                onClick={() => handleVote(c.candidateId)}
-                className={`relative w-full overflow-hidden rounded-md border px-3 py-2 text-left transition-colors ${
-                  isMine ? "border-yellow-400 bg-yellow-50" : "hover:bg-muted disabled:hover:bg-transparent"
-                } ${myVote ? "cursor-default" : "cursor-pointer"}`}
+                className={`relative w-full overflow-hidden rounded-md border px-3 py-2 ${
+                  isMine ? "border-yellow-400 bg-yellow-50" : ""
+                }`}
               >
-                {/* Tally bar (only meaningful once the voter has voted). */}
-                {myVote && (
-                  <div
-                    className="absolute inset-y-0 left-0 bg-yellow-100/70"
-                    style={{ width: `${pct}%` }}
-                    aria-hidden
-                  />
-                )}
+                <div className="absolute inset-y-0 left-0 bg-yellow-100/70" style={{ width: `${pct}%` }} aria-hidden />
                 <div className="relative flex items-center justify-between">
                   <span className="flex items-center gap-2 font-medium">
+                    <span className="text-muted-foreground tabular-nums">{i + 1}.</span>
                     {isMine && <Star className="h-4 w-4 text-yellow-500 fill-yellow-500" />}
                     {c.name}
                   </span>
-                  {myVote && (
-                    <span className="text-sm text-muted-foreground">
-                      {c.votes} oy{voting === c.candidateId ? "…" : ""}
-                    </span>
-                  )}
+                  <span className="text-sm text-muted-foreground">{c.votes} oy</span>
                 </div>
-              </button>
+              </div>
             )
           })}
+          {top3.length === 0 && (
+            <p className="text-center text-sm text-muted-foreground py-2">Henüz oy verilmedi</p>
+          )}
         </div>
-        {myVote && (
-          <p className="mt-3 text-center text-xs text-muted-foreground">Toplam {totalVotes} oy</p>
+
+        <p className="mt-3 text-center text-xs text-muted-foreground">Toplam {totalVotes} oy</p>
+
+        {!myVote && (
+          <Button className="mt-3 w-full" onClick={() => setPickerOpen(true)}>
+            <Star className="mr-2 h-4 w-4" /> MVP Oyla
+          </Button>
         )}
+
+        <Dialog open={pickerOpen} onOpenChange={setPickerOpen}>
+          <DialogContent className="max-h-[80vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle>Maçın MVP'sini seç</DialogTitle>
+              <DialogDescription>Bir oyuncuya oy ver. Oyun değiştirilemez.</DialogDescription>
+            </DialogHeader>
+            <div className="space-y-2">
+              {counts.map((c) => {
+                const pct = totalVotes > 0 ? Math.round((c.votes / totalVotes) * 100) : 0
+                return (
+                  <button
+                    key={c.candidateId}
+                    type="button"
+                    disabled={!!voting}
+                    onClick={() => handleVote(c.candidateId)}
+                    className="relative w-full overflow-hidden rounded-md border px-3 py-2 text-left transition-colors hover:bg-muted disabled:hover:bg-transparent"
+                  >
+                    <div
+                      className="absolute inset-y-0 left-0 bg-yellow-100/70"
+                      style={{ width: `${pct}%` }}
+                      aria-hidden
+                    />
+                    <div className="relative flex items-center justify-between">
+                      <span className="font-medium">{c.name}</span>
+                      <span className="text-sm text-muted-foreground">
+                        {c.votes} oy{voting === c.candidateId ? "…" : ""}
+                      </span>
+                    </div>
+                  </button>
+                )
+              })}
+            </div>
+          </DialogContent>
+        </Dialog>
       </CardContent>
     </Card>
   )

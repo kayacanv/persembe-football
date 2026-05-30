@@ -15,6 +15,8 @@ interface FifaCardProps {
   user?: Partial<User> & { name: string }
   /** Tiny variant for field slots / drag chips: photo + rating only, no stat band. */
   compact?: boolean
+  /** In compact mode, show a name band at the bottom so the player is identifiable. */
+  showName?: boolean
   className?: string
 }
 
@@ -31,7 +33,7 @@ const STAT_KEYS: { key: keyof CardData["stats"]; label: string }[] = [
 // (1cqw = 1% of the card's own width), so the SAME component scales from the
 // big profile card down to a tiny field slot by only changing the wrapper width.
 const FifaCard = forwardRef<HTMLDivElement, FifaCardProps>(function FifaCard(
-  { data, user, compact = false, className },
+  { data, user, compact = false, showName = false, className },
   ref,
 ) {
   const card: CardData = data ?? userToCardData(user ?? { name: "" })
@@ -126,6 +128,32 @@ const FifaCard = forwardRef<HTMLDivElement, FifaCardProps>(function FifaCard(
             }}
           />
         </div>
+
+        {compact && showName && (
+          // Compact name band: identifies the player on the pitch / in chips.
+          <div
+            className="absolute left-0 right-0 bottom-0 text-center"
+            style={{
+              padding: "2cqw 2cqw 3cqw",
+              background: "linear-gradient(to top, rgba(0,0,0,0.55), transparent)",
+            }}
+          >
+            <div
+              style={{
+                fontSize: "9cqw",
+                fontWeight: 800,
+                textTransform: "uppercase",
+                letterSpacing: "0.01em",
+                whiteSpace: "nowrap",
+                overflow: "hidden",
+                textOverflow: "ellipsis",
+                textShadow: "0 0.4cqw 1cqw rgba(0,0,0,0.6)",
+              }}
+            >
+              {card.name}
+            </div>
+          </div>
+        )}
 
         {!compact && (
           <>

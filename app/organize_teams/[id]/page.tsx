@@ -405,155 +405,164 @@ export default function OrganizeTeamsPage() {
     )
   }
 
+  const assignedCount = getTeamPlayers("A").length + getTeamPlayers("B").length
+
   return (
-    <div className="container max-w-7xl mx-auto px-4 py-8">
-      <div className="flex justify-between items-center mb-6">
-        <Link href={`/match/${matchId}`} passHref>
-          <Button variant="ghost" size="sm">
-            <ArrowLeft className="mr-2 h-4 w-4" />
-            Maça Dön
-          </Button>
-        </Link>
-      </div>
-
-      <h1 className="text-2xl font-bold mb-4">Takımları Düzenle</h1>
-
-      <div className="mb-6">
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="flex items-center">
-              <Users className="mr-2 h-5 w-5" />
-              {match.date} - {match.time}
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="flex flex-wrap gap-4 mb-4">
-              <Button onClick={autoAssignPlayers}>Otomatik Takım Oluştur</Button>
-              <Button variant="outline" onClick={resetAssignments}>
-                Sıfırla
+    <div className="min-h-screen bg-muted/30 pb-10">
+      {/* Sticky top bar: back + title + primary actions */}
+      <header className="sticky top-0 z-30 border-b bg-background/90 backdrop-blur supports-[backdrop-filter]:bg-background/70">
+        <div className="container max-w-5xl mx-auto px-3 py-2.5">
+          <div className="flex items-center gap-2">
+            <Link href={`/match/${matchId}`} passHref>
+              <Button variant="ghost" size="icon" className="shrink-0">
+                <ArrowLeft className="h-5 w-5" />
               </Button>
-              <Button
-                variant="default"
-                className="bg-green-600 hover:bg-green-700 ml-auto"
-                onClick={handleSavePositions}
-                disabled={saving}
-              >
-                {saving ? (
-                  <>
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Kaydediliyor...
-                  </>
-                ) : (
-                  <>
-                    <Save className="mr-2 h-4 w-4" /> Pozisyonları Kaydet
-                  </>
-                )}
-              </Button>
+            </Link>
+            <div className="min-w-0 flex-1">
+              <h1 className="text-base font-bold leading-tight truncate">Takımları Düzenle</h1>
+              <p className="text-xs text-muted-foreground leading-tight">
+                {match.date} · {match.time}
+              </p>
             </div>
-          </CardContent>
-        </Card>
-      </div>
+            <Button
+              size="sm"
+              className="bg-green-600 hover:bg-green-700 shrink-0"
+              onClick={handleSavePositions}
+              disabled={saving}
+            >
+              {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+              <span className="ml-1.5">Kaydet</span>
+            </Button>
+          </div>
+          <div className="flex gap-2 mt-2">
+            <Button size="sm" variant="secondary" className="flex-1" onClick={autoAssignPlayers}>
+              <Users className="mr-1.5 h-4 w-4" />
+              Otomatik Oluştur
+            </Button>
+            <Button size="sm" variant="outline" className="flex-1" onClick={resetAssignments}>
+              Sıfırla
+            </Button>
+          </div>
+        </div>
+      </header>
 
-      <DndContext sensors={sensors} onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          {/* Available Players */}
-          <div className="lg:col-span-1">
-            <Card>
-              <CardHeader>
-                <CardTitle>Atanmamış Oyuncular ({unassignedPlayers.length})</CardTitle>
-              </CardHeader>
-              <CardContent className="p-2">
-                <div className="grid grid-cols-2 sm:grid-cols-3 gap-1.5">
+      <div className="container max-w-5xl mx-auto px-3 pt-4">
+        <DndContext sensors={sensors} onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
+          {/* Unassigned players — horizontal scroll strip */}
+          <Card className="mb-4 overflow-hidden">
+            <CardHeader className="py-3">
+              <CardTitle className="text-sm flex items-center gap-2">
+                <span>Atanmamış Oyuncular</span>
+                <span className="inline-flex items-center justify-center rounded-full bg-primary/10 text-primary text-xs font-semibold px-2 py-0.5">
+                  {unassignedPlayers.length}
+                </span>
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="p-3 pt-0">
+              {unassignedPlayers.length === 0 ? (
+                <div className="text-center py-3 text-sm text-muted-foreground">
+                  Tüm oyuncular takımlara atandı
+                </div>
+              ) : (
+                <div className="flex gap-2 overflow-x-auto pb-1 -mx-1 px-1 snap-x">
                   {unassignedPlayers.map((player) => (
-                    <div key={player.id}>
+                    <div key={player.id} className="w-[72px] sm:w-[84px] shrink-0 snap-start">
                       <PlayerCard player={player} />
                     </div>
                   ))}
-                  {unassignedPlayers.length === 0 && (
-                    <div className="col-span-full text-center py-4 text-muted-foreground">
-                      Tüm oyuncular takımlara atandı
-                    </div>
-                  )}
                 </div>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Team formations — stacked on mobile, side-by-side from md */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {/* Team A */}
+            <Card className="overflow-hidden border-blue-200 dark:border-blue-900">
+              <CardHeader className="py-3 bg-blue-50 dark:bg-blue-950/50">
+                <CardTitle className="text-blue-700 dark:text-blue-300 text-base flex items-center justify-between">
+                  <span>Takım A</span>
+                  <span className="text-xs font-medium text-blue-600/70 dark:text-blue-400/70">
+                    {getTeamPlayers("A").length}/9
+                  </span>
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="p-2">
+                <SoccerField
+                  team="A"
+                  positions={teamA}
+                  onRemovePlayer={(posId) => removePlayer(posId, "A")}
+                  onAssignPlayer={(posId, player) => assignPlayer(posId, player, "A")}
+                  unassignedPlayers={unassignedPlayers}
+                />
               </CardContent>
+              {areAllPlayersAssigned() ? (
+                <PlayStyleBar players={getTeamPlayers("A")} team="A" />
+              ) : (
+                <div className="px-4 pb-3 text-center text-xs text-muted-foreground">
+                  Oyun stili tüm oyuncular atandığında görünecek
+                </div>
+              )}
+            </Card>
+
+            {/* Team B */}
+            <Card className="overflow-hidden border-red-200 dark:border-red-900">
+              <CardHeader className="py-3 bg-red-50 dark:bg-red-950/50">
+                <CardTitle className="text-red-700 dark:text-red-300 text-base flex items-center justify-between">
+                  <span>Takım B</span>
+                  <span className="text-xs font-medium text-red-600/70 dark:text-red-400/70">
+                    {getTeamPlayers("B").length}/9
+                  </span>
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="p-2">
+                <SoccerField
+                  team="B"
+                  positions={teamB}
+                  onRemovePlayer={(posId) => removePlayer(posId, "B")}
+                  onAssignPlayer={(posId, player) => assignPlayer(posId, player, "B")}
+                  unassignedPlayers={unassignedPlayers}
+                />
+              </CardContent>
+              {areAllPlayersAssigned() ? (
+                <PlayStyleBar players={getTeamPlayers("B")} team="B" />
+              ) : (
+                <div className="px-4 pb-3 text-center text-xs text-muted-foreground">
+                  Oyun stili tüm oyuncular atandığında görünecek
+                </div>
+              )}
             </Card>
           </div>
 
-          {/* Team Formations */}
-          <div className="lg:col-span-2">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              {/* Team A */}
-              <Card className="bg-blue-50 dark:bg-blue-950">
-                <CardHeader>
-                  <CardTitle className="text-blue-700 dark:text-blue-300">Takım A</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <SoccerField
-                    team="A"
-                    positions={teamA}
-                    onRemovePlayer={(posId) => removePlayer(posId, "A")}
-                    onAssignPlayer={(posId, player) => assignPlayer(posId, player, "A")}
-                    unassignedPlayers={unassignedPlayers}
-                  />
-                </CardContent>
-                {areAllPlayersAssigned() ? (
-                  <PlayStyleBar players={getTeamPlayers("A")} team="A" />
-                ) : (
-                  <div className="px-4 pb-4">
-                    <div className="text-center text-sm text-muted-foreground py-2">
-                      Oyun stili tüm oyuncular atandığında görünecek
-                    </div>
-                  </div>
-                )}
-              </Card>
+          {/* Drag Overlay */}
+          <DragOverlay>
+            {activePlayer ? (
+              <div className="w-[84px]">
+                <PlayerCard player={activePlayer} isDragging />
+              </div>
+            ) : null}
+          </DragOverlay>
+        </DndContext>
 
-              {/* Team B */}
-              <Card className="bg-red-50 dark:bg-red-950">
-                <CardHeader>
-                  <CardTitle className="text-red-700 dark:text-red-300">Takım B</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <SoccerField
-                    team="B"
-                    positions={teamB}
-                    onRemovePlayer={(posId) => removePlayer(posId, "B")}
-                    onAssignPlayer={(posId, player) => assignPlayer(posId, player, "B")}
-                    unassignedPlayers={unassignedPlayers}
-                  />
-                </CardContent>
-                {areAllPlayersAssigned() ? (
-                  <PlayStyleBar players={getTeamPlayers("B")} team="B" />
-                ) : (
-                  <div className="px-4 pb-4">
-                    <div className="text-center text-sm text-muted-foreground py-2">
-                      Oyun stili tüm oyuncular atandığında görünecek
-                    </div>
-                  </div>
-                )}
-              </Card>
-            </div>
+        {/* Team Power Comparison */}
+        {areAllPlayersAssigned() ? (
+          <div className="mt-4">
+            <TeamPowerComparison teamAPlayers={getTeamPlayers("A")} teamBPlayers={getTeamPlayers("B")} />
           </div>
-        </div>
-
-        {/* Drag Overlay */}
-        <DragOverlay>{activePlayer ? <PlayerCard player={activePlayer} isDragging /> : null}</DragOverlay>
-      </DndContext>
-
-      {/* Team Power Comparison */}
-      {areAllPlayersAssigned() ? (
-        <TeamPowerComparison teamAPlayers={getTeamPlayers("A")} teamBPlayers={getTeamPlayers("B")} />
-      ) : (
-        <div className="mt-6">
-          <Card>
-            <CardContent className="py-8">
+        ) : (
+          <Card className="mt-4">
+            <CardContent className="py-6">
               <div className="text-center text-muted-foreground">
-                <Users className="mx-auto h-12 w-12 mb-4 opacity-50" />
-                <h3 className="text-lg font-medium mb-2">Takım Analizi</h3>
-                <p>Güç karşılaştırması ve oyun stili analizi tüm oyuncular takımlara atandığında görünecek.</p>
+                <Users className="mx-auto h-10 w-10 mb-3 opacity-50" />
+                <h3 className="text-base font-medium mb-1">Takım Analizi</h3>
+                <p className="text-sm">
+                  Güç karşılaştırması tüm oyuncular ({assignedCount}/{players.length}) atandığında görünecek.
+                </p>
               </div>
             </CardContent>
           </Card>
-        </div>
-      )}
+        )}
+      </div>
       <Toaster />
     </div>
   )

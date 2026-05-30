@@ -40,13 +40,22 @@ export default function SoccerField({
 
   return (
     <div
-      className={`relative w-full aspect-[2/3] bg-emerald-700 rounded-lg overflow-hidden border-2 border-emerald-800 shadow-md`}
+      className="relative w-full aspect-[3/4] rounded-xl overflow-hidden border-2 border-emerald-900 shadow-md"
+      style={{
+        backgroundImage:
+          "repeating-linear-gradient(to bottom, #15803d 0, #15803d 8.33%, #16a34a 8.33%, #16a34a 16.66%)",
+      }}
     >
       {/* Field markings */}
-      <div className="absolute inset-0 flex flex-col">
-        <div className="h-1/2 border-b-2 border-white/70"></div>
-        <div className="absolute top-1/2 left-1/2 w-16 h-16 border-2 border-white/70 rounded-full -translate-x-1/2 -translate-y-1/2"></div>
-        <div className="absolute bottom-0 left-1/2 w-32 h-16 border-2 border-white/70 rounded-t-full -translate-x-1/2"></div>
+      <div className="absolute inset-2 border-2 border-white/40 rounded-sm pointer-events-none">
+        {/* Halfway line */}
+        <div className="absolute top-1/2 left-0 right-0 border-t-2 border-white/40 -translate-y-px"></div>
+        {/* Center circle */}
+        <div className="absolute top-1/2 left-1/2 w-14 h-14 border-2 border-white/40 rounded-full -translate-x-1/2 -translate-y-1/2"></div>
+        {/* Top penalty box */}
+        <div className="absolute top-0 left-1/2 w-24 h-10 border-2 border-t-0 border-white/40 -translate-x-1/2"></div>
+        {/* Bottom penalty box */}
+        <div className="absolute bottom-0 left-1/2 w-24 h-10 border-2 border-b-0 border-white/40 -translate-x-1/2"></div>
       </div>
 
       {/* Positions */}
@@ -194,23 +203,26 @@ function PositionDroppable({
   })
 
   return (
-    <div ref={setNodeRef} className="flex justify-center p-1 h-full relative">
+    <div ref={setNodeRef} className="flex justify-center items-center h-full relative px-0.5">
       <div
-        className={`w-full h-full min-h-[60px] ${
-          isOver ? "bg-white/30" : "bg-white/10"
-        } rounded-md flex items-center justify-center p-0.5 transition-colors relative`} // Reduced padding for more space
+        className={`w-full h-full flex items-center justify-center transition-colors relative rounded-md ${
+          player ? "" : isOver ? "bg-white/25" : ""
+        }`}
       >
         {player ? (
-          <PositionedPlayer player={player} team={team} onRemove={onRemove} />
+          // Constrain the card so the pitch shows through and the formation reads as a formation.
+          <div className="w-full max-w-[68px] sm:max-w-[84px]">
+            <PositionedPlayer player={player} team={team} onRemove={onRemove} />
+          </div>
         ) : (
           <div
             onClick={onClick}
-            className={`w-full h-full min-h-[50px] rounded border-2 border-dashed ${
-              isActive ? "border-white bg-white/20" : isOver ? "border-white" : "border-white/30"
-            } flex flex-col items-center justify-center cursor-pointer hover:bg-white/10 transition-colors`}
+            className={`w-full max-w-[60px] sm:max-w-[72px] aspect-[3/4] rounded-lg border-2 border-dashed ${
+              isActive ? "border-white bg-white/25" : isOver ? "border-white bg-white/15" : "border-white/40"
+            } flex flex-col items-center justify-center cursor-pointer hover:bg-white/15 transition-colors text-center px-1`}
           >
-            <span className="text-xs text-white/90">{label}</span>
-            <ChevronDown className="h-3 w-3 text-white/70 mt-1" />
+            <span className="text-[10px] leading-tight text-white/90">{label}</span>
+            <ChevronDown className="h-3 w-3 text-white/70 mt-0.5" />
           </div>
         )}
 
@@ -279,20 +291,20 @@ function PositionedPlayer({ player, team, onRemove }: PositionedPlayerProps) {
       {...listeners}
       {...attributes}
       className={`
-        w-full h-full cursor-grab active:cursor-grabbing
-        overflow-hidden relative flex items-center justify-center
-        rounded-md ring-2 ${team === "A" ? "ring-blue-400 dark:ring-blue-600" : "ring-red-400 dark:ring-red-600"}
+        w-full cursor-grab active:cursor-grabbing
+        relative rounded-lg ring-2 ${team === "A" ? "ring-blue-400 dark:ring-blue-500" : "ring-red-400 dark:ring-red-500"}
+        shadow-lg
       `}
     >
-      <FifaCard user={player} compact className="pointer-events-none" />
+      <FifaCard user={player} compact showName className="pointer-events-none rounded-lg overflow-hidden" />
       <button
         onClick={(e) => {
           e.stopPropagation()
           onRemove()
         }}
-        className="absolute top-0.5 right-0.5 bg-white/70 dark:bg-gray-800/70 rounded-full p-px sm:p-0.5 shadow-md hover:bg-white dark:hover:bg-gray-700 z-10"
+        className="absolute -top-1.5 -right-1.5 bg-white dark:bg-gray-800 rounded-full p-0.5 shadow-md hover:bg-gray-100 dark:hover:bg-gray-700 z-10 border border-black/10"
       >
-        <X className="h-2.5 w-2.5 sm:h-3 sm:w-3 text-gray-600 dark:text-gray-300" />
+        <X className="h-3 w-3 text-gray-700 dark:text-gray-300" />
       </button>
     </div>
   )
