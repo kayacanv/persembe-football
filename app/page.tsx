@@ -8,7 +8,7 @@ import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Calendar, Clock, ArrowRight, Plus, Users, BarChart3, Loader2, AlertCircle } from "lucide-react"
+import { Calendar, Clock, ArrowRight, Plus, Users, BarChart3, Loader2, AlertCircle, Star } from "lucide-react"
 import {
   getActiveMatch,
   getPastMatches,
@@ -17,7 +17,8 @@ import {
   getNextThursday,
   getUnpaidPlayerCount, // Import new function
 } from "./lib/data-service"
-import type { Match, PlayerRankingStats } from "./lib/types"
+import { getMvpWinnersForMatches, getVotingWindow } from "./lib/mvp-service"
+import type { Match, MvpWinner, PlayerRankingStats } from "./lib/types"
 import { toast } from "@/components/ui/use-toast"
 import { getSupabaseBrowserClient } from "./lib/supabase-browser"
 import {
@@ -38,6 +39,7 @@ export default function HomePage() {
   const [loadingMatches, setLoadingMatches] = useState(true)
   const [loadingRankings, setLoadingRankings] = useState(true)
   const [unpaidCounts, setUnpaidCounts] = useState<Record<string, number>>({})
+  const [mvpWinners, setMvpWinners] = useState<Record<string, MvpWinner>>({})
 
   // Add state for price input and dialog
   const [createMatchDialogOpen, setCreateMatchDialogOpen] = useState(false)
@@ -113,6 +115,12 @@ export default function HomePage() {
           }),
         )
         setUnpaidCounts(counts)
+
+        // MVP winners — only for matches whose voting window has closed, so the
+        // badge shows a final result rather than a provisional leader.
+        const closedPast = past.filter((m) => getVotingWindow(m).isClosed)
+        const winners = await getMvpWinnersForMatches(closedPast.map((m) => m.id))
+        setMvpWinners(Object.fromEntries(winners))
       } catch (error) {
         console.error("Error loading data:", error)
         toast({
@@ -140,6 +148,14 @@ export default function HomePage() {
         toast({
           title: "Başarılı",
           description: "Yeni maç oluşturuldu.",
+        })
+      } else {
+        // createMatch returns null on failure — most likely the unique date
+        // constraint (a match for that Thursday already exists).
+        toast({
+          title: "Maç oluşturulamadı",
+          description: `${getNextThursday()} tarihli maç zaten mevcut olabilir.`,
+          variant: "destructive",
         })
       }
     } catch (error) {
@@ -246,6 +262,12 @@ export default function HomePage() {
                       <CardDescription>
                         Skor: {match.score_a ?? 0} - {match.score_b ?? 0}
                       </CardDescription>
+                      {mvpWinners[match.id] && (
+                        <div className="mt-1 flex items-center gap-1 text-sm font-medium text-yellow-600">
+                          <Star className="h-4 w-4 fill-yellow-500 text-yellow-500" />
+                          MVP: {mvpWinners[match.id].name}
+                        </div>
+                      )}
                     </CardHeader>
                     <CardContent className="pt-4">
                       <Link href={`/match/${match.id}`} passHref>

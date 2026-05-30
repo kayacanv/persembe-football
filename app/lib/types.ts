@@ -106,3 +106,37 @@ export type PlayerRankingStats = {
   losses: number
   winRate: number
 }
+
+// MVP (man of the match) voting
+
+export type MvpVote = {
+  id: string
+  match_id: string
+  candidate_id: string
+  device_id: string
+  created_at?: string
+}
+
+// Computed voting window for a match (see mvp-service.ts)
+export type VotingWindow = {
+  openAt: Date
+  closeAt: Date
+  isOpen: boolean // voting currently accepting votes
+  isClosed: boolean // window passed, result is final
+}
+
+// A single candidate's tally within a match
+export type MvpVoteCount = {
+  candidateId: string
+  name: string
+  photo_url?: string | null
+  votes: number
+}
+
+// Winner summary for a match (null if no votes were cast)
+export type MvpWinner = {
+  candidateId: string
+  name: string
+  photo_url?: string | null
+  votes: number
+}

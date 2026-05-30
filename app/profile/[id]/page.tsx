@@ -35,6 +35,7 @@ import {
   Eye,
   EyeOff,
   Minus,
+  Star,
 } from "lucide-react"
 import Link from "next/link"
 import {
@@ -46,6 +47,7 @@ import {
   getPlayerTeammates,
   getUnpaidMatchesCount,
 } from "@/app/lib/profile-service"
+import { getPlayerMvpCount } from "@/app/lib/mvp-service"
 import type { User as UserType, PlayerMatchSummary, PlayerStats, TeammateStats } from "@/app/lib/types"
 import PlayerPhotoCard from "@/app/components/player-photo-card"
 
@@ -62,6 +64,7 @@ export default function PlayerProfilePage() {
   const [teammates, setTeammates] = useState<TeammateStats[]>([])
   const [showPhotoInstructions, setShowPhotoInstructions] = useState(false)
   const [unpaidMatchesCount, setUnpaidMatchesCount] = useState(0)
+  const [mvpCount, setMvpCount] = useState(0)
 
   // Form state
   const [phone, setPhone] = useState("")
@@ -88,16 +91,18 @@ export default function PlayerProfilePage() {
         setPhone(userData.phone || "")
         setEmail(userData.email || "")
 
-        const [history, stats, teammatesData, unpaidCount] = await Promise.all([
+        const [history, stats, teammatesData, unpaidCount, mvpAwards] = await Promise.all([
           getPlayerMatchHistory(playerId),
           getPlayerStats(playerId),
           getPlayerTeammates(playerId),
           getUnpaidMatchesCount(playerId),
+          getPlayerMvpCount(playerId),
         ])
         setMatchHistory(history)
         setPlayerStats(stats)
         setTeammates(teammatesData)
         setUnpaidMatchesCount(unpaidCount)
+        setMvpCount(mvpAwards)
       } catch (error) {
         console.error("Error loading player data:", error)
         toast({ title: "Hata", description: "Veri yüklenirken bir hata oluştu.", variant: "destructive" })
@@ -400,6 +405,12 @@ export default function PlayerProfilePage() {
                         <div className="bg-red-50 dark:bg-red-900/20 p-4 rounded-lg text-center">
                           <div className="text-red-600 dark:text-red-400 text-sm mb-1">Mağlubiyet</div>
                           <div className="text-3xl font-bold text-red-600 dark:text-red-400">{playerStats.losses}</div>
+                        </div>
+                        <div className="bg-yellow-50 dark:bg-yellow-900/20 p-4 rounded-lg text-center">
+                          <div className="text-yellow-600 dark:text-yellow-400 text-sm mb-1 flex items-center justify-center gap-1">
+                            <Star className="h-3.5 w-3.5 fill-yellow-500 text-yellow-500" /> MVP Ödülleri
+                          </div>
+                          <div className="text-3xl font-bold text-yellow-600 dark:text-yellow-400">{mvpCount}</div>
                         </div>
                       </div>
                       <div className="mt-6">

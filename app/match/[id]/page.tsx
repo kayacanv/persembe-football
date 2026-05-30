@@ -63,6 +63,7 @@ import { format, formatDistanceToNow } from "date-fns"
 import { tr } from "date-fns/locale"
 import { PlayerNameAutocomplete } from "@/app/components/player-name-autocomplete"
 import { Textarea } from "@/components/ui/textarea"
+import MvpVoting from "@/app/components/mvp-voting"
 
 export default function MatchPage({ params }: { params: { id: string } }) {
   const router = useRouter()
@@ -1296,6 +1297,11 @@ export default function MatchPage({ params }: { params: { id: string } }) {
           </div>
         </CardContent>
       </Card>
+
+      {/* MVP voting (time-windowed: opens after the match, closes next week) */}
+      <div className="mb-6">
+        <MvpVoting match={{ id: match.id, date: match.date, time: match.time }} />
+      </div>
 
       {/* Bulk Add Result Card */}
       {bulkAddResult && (

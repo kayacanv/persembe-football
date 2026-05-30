@@ -38,6 +38,34 @@ export async function getMatchById(id: string): Promise<Match | null> {
   return data
 }
 
+// Get a specific match by its date (DD.MM.YYYY). Returns the most recent if several share a date.
+export async function getMatchByDate(date: string): Promise<Match | null> {
+  const supabase = getSupabaseBrowserClient()
+  if (!supabase) {
+    console.error("Supabase client is not initialized")
+    return null
+  }
+
+  const { data, error } = await supabase
+    .from("matches")
+    .select("*")
+    .eq("date", date)
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .single()
+
+  if (error) {
+    if (error.code === "PGRST116") {
+      // No match found for this date
+      return null
+    }
+    console.error("Error fetching match by date:", error)
+    return null
+  }
+
+  return data
+}
+
 // Get players for a specific match
 export async function getPlayersForMatch(matchId: string): Promise<PlayerWithDetails[]> {
   const supabase = getSupabaseBrowserClient()
