@@ -5,7 +5,6 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Slider } from "@/components/ui/slider"
-import { Switch } from "@/components/ui/switch"
 import {
   Select,
   SelectContent,
@@ -65,8 +64,9 @@ export default function FifaCardEditor({ user, onSaved }: FifaCardEditorProps) {
   const [scale, setScale] = useState(initial.photo.scale)
   const [offsetX, setOffsetX] = useState(initial.photo.x)
   const [offsetY, setOffsetY] = useState(initial.photo.y)
-  const [fade, setFade] = useState(initial.photo.fade)
   const [saving, setSaving] = useState(false)
+  // The bottom fade is always on — it's the classic FIFA-card look (no UI toggle).
+  const fade = true
 
   // Legacy baked PNG? Offer to convert to a live card.
   const isBaked = initial.baked && !!initial.photoUrl
@@ -251,10 +251,6 @@ export default function FifaCardEditor({ user, onSaved }: FifaCardEditorProps) {
                   <span className="text-sm tabular-nums">{offsetY}</span>
                 </div>
                 <Slider value={[offsetY]} min={-100} max={100} step={1} onValueChange={(v) => setOffsetY(v[0])} />
-              </div>
-              <div className="flex items-center justify-between">
-                <Label className="text-sm">Alt kenarı karta karıştır</Label>
-                <Switch checked={fade} onCheckedChange={setFade} />
               </div>
             </div>
           )}
