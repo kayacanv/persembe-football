@@ -5,7 +5,7 @@ import { Loader2, Star, Trophy } from "lucide-react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { toast } from "@/components/ui/use-toast"
-import PlayerPhotoCard from "@/app/components/player-photo-card"
+import FifaCard from "@/app/components/fifa-card/fifa-card"
 import {
   castVote,
   getMyVote,
@@ -125,7 +125,9 @@ export default function MvpVoting({ match }: MvpVotingProps) {
         <CardContent>
           {winner ? (
             <div className="space-y-4">
-              <PlayerPhotoCard name={winner.name} photoUrl={winner.photo_url} />
+              <div className="mx-auto w-full max-w-[220px]">
+                <FifaCard user={{ name: winner.name, photo_url: winner.photo_url }} />
+              </div>
               <div className="text-center">
                 <div className="text-lg font-semibold">{winner.name}</div>
                 <div className="text-sm text-muted-foreground">{winner.votes} oy</div>

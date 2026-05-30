@@ -36,6 +36,7 @@ import {
   EyeOff,
   Minus,
   Star,
+  CreditCard,
 } from "lucide-react"
 import Link from "next/link"
 import {
@@ -46,10 +47,13 @@ import {
   getPlayerStats,
   getPlayerTeammates,
   getUnpaidMatchesCount,
+  updateUserCard,
 } from "@/app/lib/profile-service"
+import { removeBackgroundToCutout } from "@/app/lib/storage-service"
 import { getPlayerMvpCount } from "@/app/lib/mvp-service"
 import type { User as UserType, PlayerMatchSummary, PlayerStats, TeammateStats } from "@/app/lib/types"
-import PlayerPhotoCard from "@/app/components/player-photo-card"
+import FifaCard from "@/app/components/fifa-card/fifa-card"
+import FifaCardEditor from "@/app/components/fifa-card/fifa-card-editor"
 
 export default function PlayerProfilePage() {
   const params = useParams()
@@ -74,6 +78,7 @@ export default function PlayerProfilePage() {
   // Photo upload state
   const [selectedFile, setSelectedFile] = useState<File | null>(null)
   const [uploadingPhoto, setUploadingPhoto] = useState(false)
+  const [bgStatus, setBgStatus] = useState<string | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   // Load player data
@@ -158,10 +163,20 @@ export default function PlayerProfilePage() {
     if (!selectedFile || !user) return
     try {
       setUploadingPhoto(true)
-      const newPhotoUrl = await updateUserPhoto(user.id, selectedFile, user.photo_url)
+      // Remove the background in-browser so the photo becomes a clean cutout that
+      // composites into the live card. Falls back to the original file on failure.
+      setBgStatus("Arka plan kaldırılıyor…")
+      const cutout = await removeBackgroundToCutout(selectedFile, (_stage, ratio) => {
+        setBgStatus(`Arka plan kaldırılıyor… %${Math.round(ratio * 100)}`)
+      })
+      setBgStatus("Yükleniyor…")
+      const newPhotoUrl = await updateUserPhoto(user.id, cutout, user.photo_url)
       if (newPhotoUrl) {
+        // A fresh cutout should composite into the live card, not be treated as a
+        // pre-baked card image — clear the legacy baked flag.
+        await updateUserCard(user.id, { card_baked: false })
         toast({ title: "Başarılı", description: "Profil fotoğrafı güncellendi." })
-        setUser((prev) => (prev ? { ...prev, photo_url: newPhotoUrl } : null))
+        setUser((prev) => (prev ? { ...prev, photo_url: newPhotoUrl, card_baked: false } : null))
         setSelectedFile(null)
         if (fileInputRef.current) fileInputRef.current.value = ""
       } else {
@@ -172,6 +187,7 @@ export default function PlayerProfilePage() {
       toast({ title: "Hata", description: "Fotoğraf yüklenirken bir hata oluştu.", variant: "destructive" })
     } finally {
       setUploadingPhoto(false)
+      setBgStatus(null)
     }
   }
 
@@ -224,11 +240,9 @@ export default function PlayerProfilePage() {
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-8 mb-8">
         <div className="md:col-span-1 flex flex-col items-center">
-          <PlayerPhotoCard
-            name={user.name}
-            photoUrl={user.photo_url}
-            // Removed position, power, confirmed props as they are not needed by the simplified card
-          />
+          <div className="w-full max-w-[280px] mx-auto">
+            <FifaCard user={user} />
+          </div>
           <input
             type="file"
             accept="image/jpeg, image/png, image/webp"
@@ -253,7 +267,7 @@ export default function PlayerProfilePage() {
             >
               {uploadingPhoto ? (
                 <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Yükleniyor...
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" /> {bgStatus ?? "Yükleniyor..."}
                 </>
               ) : (
                 <>
@@ -275,52 +289,32 @@ export default function PlayerProfilePage() {
               <CardHeader className="pb-3">
                 <CardTitle className="text-base text-blue-700 dark:text-blue-300 flex items-center">
                   <Info className="h-5 w-5 mr-2" />
-                  Profil Fotoğrafı Hazırlama (FIFA Kart Stili)
+                  Profil Fotoğrafı İpuçları
                 </CardTitle>
                 <CardDescription className="text-blue-600 dark:text-blue-400">
-                  Profil fotoğrafınızı FIFA (FC) oyuncu kartı formatında yükleyebilirsiniz. Aşağıdaki adımları izleyerek
-                  kendi kartınızı oluşturun:
+                  Normal bir fotoğraf yükle, arka planını otomatik olarak kaldırıp kartına yerleştiriyoruz.
                 </CardDescription>
               </CardHeader>
               <CardContent className="text-sm space-y-3">
                 <div>
-                  <strong className="block mb-1">Adım 1: Arka Planı Kaldırma</strong>
+                  <strong className="block mb-1">1. Fotoğrafı seç</strong>
                   <p className="text-muted-foreground">
-                    Fotoğrafınızın arka planını kaldırmak için{" "}
-                    <a
-                      href="https://www.remove.bg/"
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-primary hover:underline font-medium"
-                    >
-                      remove.bg
-                    </a>{" "}
-                    sitesini ziyaret edin ve fotoğrafınızı yükleyerek arka planı temizlenmiş halini indirin.
+                    "Fotoğrafı Değiştir" ile telefonundan net, önden çekilmiş bir fotoğraf seç (JPG, PNG veya WEBP, en
+                    fazla 5MB).
                   </p>
                 </div>
                 <div>
-                  <strong className="block mb-1">Adım 2: FIFA Kartı Oluşturma</strong>
+                  <strong className="block mb-1">2. Arka plan otomatik kalkar</strong>
                   <p className="text-muted-foreground">
-                    Kendi oyuncu kartınızı tasarlamak için{" "}
-                    <a
-                      href="https://www.fut.gg/card-creator/"
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-primary hover:underline font-medium"
-                    >
-                      FUT.GG Card Creator
-                    </a>{" "}
-                    adresine gidin. Arka planı kaldırılmış fotoğrafınızı kullanarak kartınızı oluşturun ve indirin.
-                  </p>
-                  <p className="text-xs text-muted-foreground mt-1">
-                    (İpucu: Kart boyutlarının yaklaşık 560x782 piksel olmasına dikkat edin.)
+                    Yükleme sırasında arka plan tarayıcında otomatik olarak kaldırılır — ekstra bir uygulamaya gerek yok.
+                    İlk seferde kısa bir indirme olabilir.
                   </p>
                 </div>
                 <div>
-                  <strong className="block mb-1">Adım 3: Kartı Yükleme</strong>
+                  <strong className="block mb-1">3. Kartını ayarla</strong>
                   <p className="text-muted-foreground">
-                    Oluşturduğunuz ve indirdiğiniz FIFA kartını aşağıdaki "Fotoğrafı Değiştir" butonunu kullanarak
-                    yükleyebilirsiniz.
+                    "Kart" sekmesinden fotoğrafın konumunu (yakınlaştırma/kaydırma), istatistiklerini ve kart türünü
+                    düzenleyebilirsin.
                   </p>
                 </div>
               </CardContent>
@@ -352,8 +346,12 @@ export default function PlayerProfilePage() {
             </div>
           </div>
 
-          <Tabs defaultValue="stats" className="w-full">
-            <TabsList className="grid grid-cols-2 sm:grid-cols-4 mb-6">
+          <Tabs defaultValue="card" className="w-full">
+            <TabsList className="grid grid-cols-3 sm:grid-cols-5 mb-6">
+              <TabsTrigger value="card">
+                <CreditCard className="h-4 w-4 mr-1 sm:mr-2" />
+                <span>Kart</span>
+              </TabsTrigger>
               <TabsTrigger value="stats">
                 <BarChart3 className="h-4 w-4 mr-1 sm:mr-2" />
                 <span className="hidden sm:inline">İstatistikler</span>
@@ -375,6 +373,23 @@ export default function PlayerProfilePage() {
                 <span className="sm:hidden">Profil</span>
               </TabsTrigger>
             </TabsList>
+
+            <TabsContent value="card">
+              <Card>
+                <CardHeader>
+                  <CardTitle>Kartını Düzenle</CardTitle>
+                  <CardDescription>
+                    Genel puanını, pozisyonunu, istatistiklerini, kart türünü ve ülkeni özelleştir.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <FifaCardEditor
+                    user={user}
+                    onSaved={(updated) => setUser((prev) => (prev ? { ...prev, ...updated } : prev))}
+                  />
+                </CardContent>
+              </Card>
+            </TabsContent>
 
             <TabsContent value="stats">
               <Card>

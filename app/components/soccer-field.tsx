@@ -6,7 +6,7 @@ import { CSS } from "@dnd-kit/utilities"
 import { useState } from "react"
 import type { PlayerWithDetails } from "@/app/lib/types"
 import { X, ChevronDown } from "lucide-react"
-import Image from "next/image" // Import Next.js Image
+import FifaCard from "@/app/components/fifa-card/fifa-card"
 
 interface SoccerFieldProps {
   team: "A" | "B"
@@ -236,29 +236,12 @@ function PositionDroppable({
                   onClick={() => onPlayerSelect(unassignedPlayer)}
                   className="p-1.5 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-sm cursor-pointer text-xs mb-1 last:mb-0"
                 >
-                  {unassignedPlayer.photo_url ? (
-                    <div className="flex items-center">
-                      <div
-                        className="relative w-8 h-8 mr-2 rounded-sm overflow-hidden flex-shrink-0"
-                        style={{ aspectRatio: `${560 / 782}` }}
-                      >
-                        <Image
-                          src={unassignedPlayer.photo_url || "/placeholder.svg"}
-                          alt={unassignedPlayer.name}
-                          layout="fill"
-                          objectFit="contain"
-                          unoptimized={unassignedPlayer.photo_url.includes("supabase.co")}
-                        />
-                      </div>
-                      <span className="font-medium dark:text-white truncate">{unassignedPlayer.name}</span>
+                  <div className="flex items-center">
+                    <div className="w-7 mr-2 flex-shrink-0">
+                      <FifaCard user={unassignedPlayer} compact className="pointer-events-none" />
                     </div>
-                  ) : (
-                    <div className="font-medium dark:text-white">{unassignedPlayer.name}</div>
-                  )}
-                  {unassignedPlayer.position &&
-                    !unassignedPlayer.photo_url && ( // Show position only if no photo
-                      <div className="text-gray-500 dark:text-gray-400 text-xs">{unassignedPlayer.position}</div>
-                    )}
+                    <span className="font-medium dark:text-white truncate">{unassignedPlayer.name}</span>
+                  </div>
                 </div>
               ))}
             </div>
@@ -296,26 +279,12 @@ function PositionedPlayer({ player, team, onRemove }: PositionedPlayerProps) {
       {...listeners}
       {...attributes}
       className={`
-        w-full h-full rounded-md shadow-sm cursor-grab active:cursor-grabbing 
-        overflow-hidden relative border
-        ${team === "A" ? "bg-blue-100 border-blue-300 dark:bg-blue-900 dark:border-blue-700" : "bg-red-100 border-red-300 dark:bg-red-900 dark:border-red-700"}
+        w-full h-full cursor-grab active:cursor-grabbing
+        overflow-hidden relative flex items-center justify-center
+        rounded-md ring-2 ${team === "A" ? "ring-blue-400 dark:ring-blue-600" : "ring-red-400 dark:ring-red-600"}
       `}
     >
-      {player.photo_url ? (
-        <Image
-          src={player.photo_url || "/placeholder.svg"}
-          alt={`${player.name}'s photo`}
-          layout="fill"
-          objectFit="contain" // Will fit the 560x782 image within the slot, preserving aspect ratio. Team background will show.
-          unoptimized={player.photo_url.includes("supabase.co")}
-        />
-      ) : (
-        <div className="absolute inset-0 flex flex-col items-center justify-center p-1 text-center">
-          <span className="font-medium text-[10px] sm:text-xs leading-tight dark:text-white">{player.name}</span>
-          {/* Optionally show preferred position if no photo and space allows */}
-          {/* {player.position && <div className="text-[9px] text-gray-500 dark:text-gray-300 truncate">{player.position}</div>} */}
-        </div>
-      )}
+      <FifaCard user={player} compact className="pointer-events-none" />
       <button
         onClick={(e) => {
           e.stopPropagation()

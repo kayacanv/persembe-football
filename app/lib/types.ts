@@ -14,6 +14,23 @@ export type User = {
   position_weight: number // Attack tendency from 1-5 (1=defend, 5=attack)
   photo_url?: string | null // URL for the player's photo
   created_at?: string
+  // --- FIFA-style card fields (cosmetic, independent of `power`/team balancing) ---
+  card_overall?: number // 0-99
+  card_pac?: number
+  card_sho?: number
+  card_pas?: number
+  card_dri?: number
+  card_def?: number
+  card_phy?: number
+  card_position?: string // FIFA slot, e.g. "ST" | "CB" | "GK" (separate from Turkish `position`)
+  card_nation?: string | null // ISO-ish code -> /flags/<code>.svg
+  club_badge_url?: string | null
+  card_tier?: string // "bronze" | "silver" | "gold" | "special" | "fener"
+  card_photo_scale?: number
+  card_photo_x?: number
+  card_photo_y?: number
+  card_photo_fade?: boolean
+  card_baked?: boolean // legacy fully-baked card PNG in photo_url -> render raw
 }
 
 export type Match = {

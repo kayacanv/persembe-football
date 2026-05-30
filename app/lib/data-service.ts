@@ -94,7 +94,23 @@ export async function getPlayersForMatch(matchId: string): Promise<PlayerWithDet
         confirmed,
         power,
         position_weight,
-        photo_url
+        photo_url,
+        card_overall,
+        card_pac,
+        card_sho,
+        card_pas,
+        card_dri,
+        card_def,
+        card_phy,
+        card_position,
+        card_nation,
+        club_badge_url,
+        card_tier,
+        card_photo_scale,
+        card_photo_x,
+        card_photo_y,
+        card_photo_fade,
+        card_baked
       )
     `)
     .eq("match_id", matchId)
@@ -115,6 +131,23 @@ export async function getPlayersForMatch(matchId: string): Promise<PlayerWithDet
     power: item.users.power || 5, // Default to 5 if power is null
     position_weight: item.users.position_weight || 3, // Default to 3 if position_weight is null
     photo_url: item.users.photo_url, // Added photo_url
+    // FIFA card fields (?? keeps cards rendering even if a column is missing/null)
+    card_overall: item.users.card_overall ?? undefined,
+    card_pac: item.users.card_pac ?? undefined,
+    card_sho: item.users.card_sho ?? undefined,
+    card_pas: item.users.card_pas ?? undefined,
+    card_dri: item.users.card_dri ?? undefined,
+    card_def: item.users.card_def ?? undefined,
+    card_phy: item.users.card_phy ?? undefined,
+    card_position: item.users.card_position ?? undefined,
+    card_nation: item.users.card_nation ?? undefined,
+    club_badge_url: item.users.club_badge_url ?? undefined,
+    card_tier: item.users.card_tier ?? undefined,
+    card_photo_scale: item.users.card_photo_scale ?? undefined,
+    card_photo_x: item.users.card_photo_x ?? undefined,
+    card_photo_y: item.users.card_photo_y ?? undefined,
+    card_photo_fade: item.users.card_photo_fade ?? undefined,
+    card_baked: item.users.card_baked ?? undefined,
     has_paid: item.has_paid,
     team: item.team as Team,
     match_player_id: item.id,

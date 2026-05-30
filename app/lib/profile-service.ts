@@ -45,6 +45,47 @@ export async function updateUserProfile(
   return true
 }
 
+// Persist FIFA-style card fields. Self-serve (anon key + RLS), same trust model as
+// updateUserProfile — any client may edit any player's card. Tighten RLS later if abused.
+export type CardUpdate = Partial<
+  Pick<
+    User,
+    | "card_overall"
+    | "card_pac"
+    | "card_sho"
+    | "card_pas"
+    | "card_dri"
+    | "card_def"
+    | "card_phy"
+    | "card_position"
+    | "card_nation"
+    | "club_badge_url"
+    | "card_tier"
+    | "card_photo_scale"
+    | "card_photo_x"
+    | "card_photo_y"
+    | "card_photo_fade"
+    | "card_baked"
+  >
+>
+
+export async function updateUserCard(userId: string, card: CardUpdate): Promise<boolean> {
+  const supabase = getSupabaseBrowserClient()
+  if (!supabase) {
+    console.error("Supabase client is not initialized")
+    return false
+  }
+
+  const { error } = await supabase.from("users").update(card).eq("id", userId)
+
+  if (error) {
+    console.error("Error updating user card:", error)
+    return false
+  }
+
+  return true
+}
+
 // Update user contact information (kept for backward compatibility if used elsewhere)
 export async function updateUserContact(
   userId: string,
