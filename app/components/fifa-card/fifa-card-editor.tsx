@@ -239,12 +239,18 @@ export default function FifaCardEditor({ user, onSaved }: FifaCardEditorProps) {
                 <Slider value={[scale]} min={0.5} max={2} step={0.05} onValueChange={(v) => setScale(v[0])} />
               </div>
               <div className="space-y-2">
-                <Label className="text-sm">Yatay</Label>
-                <Slider value={[offsetX]} min={-40} max={40} step={1} onValueChange={(v) => setOffsetX(v[0])} />
+                <div className="flex items-center justify-between">
+                  <Label className="text-sm">Yatay</Label>
+                  <span className="text-sm tabular-nums">{offsetX}</span>
+                </div>
+                <Slider value={[offsetX]} min={-100} max={100} step={1} onValueChange={(v) => setOffsetX(v[0])} />
               </div>
               <div className="space-y-2">
-                <Label className="text-sm">Dikey</Label>
-                <Slider value={[offsetY]} min={-40} max={40} step={1} onValueChange={(v) => setOffsetY(v[0])} />
+                <div className="flex items-center justify-between">
+                  <Label className="text-sm">Dikey</Label>
+                  <span className="text-sm tabular-nums">{offsetY}</span>
+                </div>
+                <Slider value={[offsetY]} min={-100} max={100} step={1} onValueChange={(v) => setOffsetY(v[0])} />
               </div>
               <div className="flex items-center justify-between">
                 <Label className="text-sm">Alt kenarı karta karıştır</Label>
