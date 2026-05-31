@@ -17,12 +17,18 @@ type UnpaidPlayerRow = {
   id: string
   match_id: string
   matches: { date: string; price: number } | { date: string; price: number }[] | null
+  users: { name: string } | { name: string }[] | null
 }
 
 function matchOf(row: UnpaidPlayerRow): { date: string; price: number } | null {
   // Supabase returns the joined row as an object (to-one) but typings allow array.
   const m = Array.isArray(row.matches) ? row.matches[0] : row.matches
   return m ?? null
+}
+
+function nameOf(row: UnpaidPlayerRow): string {
+  const u = Array.isArray(row.users) ? row.users[0] : row.users
+  return u?.name ?? ""
 }
 
 // Process a single incoming feed item. Only meaningful for IN/SETTLED items, but
@@ -82,7 +88,7 @@ export async function processFeedItem(
 
   const { data: unpaid, error: unpaidErr } = await supabase
     .from("match_players")
-    .select("id, match_id, matches(date, price)")
+    .select("id, match_id, matches(date, price), users(name)")
     .eq("has_paid", false)
 
   if (unpaidErr) {
@@ -92,7 +98,7 @@ export async function processFeedItem(
   const candidates = ((unpaid ?? []) as UnpaidPlayerRow[]).filter((row) => {
     const m = matchOf(row)
     if (!m) return false
-    const code = normalizeRef(paymentRef(m.date, row.id))
+    const code = normalizeRef(paymentRef(m.date, row.id, nameOf(row)))
     if (!payerRef.includes(code)) return false
     const expectedMinor = Math.round(m.price * 100)
     return item.amount.minorUnits === expectedMinor

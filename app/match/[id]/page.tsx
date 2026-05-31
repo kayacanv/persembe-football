@@ -1640,7 +1640,9 @@ export default function MatchPage({ params }: { params: { id: string } }) {
 
                   {(() => {
                     const ref =
-                      playerToPay && match ? paymentRef(match.date, playerToPay.match_player_id) : ""
+                      playerToPay && match
+                        ? paymentRef(match.date, playerToPay.match_player_id, playerToPay.name)
+                        : ""
                     const rows: { label: string; value: string; copy?: boolean }[] = [
                       { label: "Hesap adı", value: process.env.NEXT_PUBLIC_STARLING_ACCOUNT_NAME || "—" },
                       { label: "Sort code", value: process.env.NEXT_PUBLIC_STARLING_SORT_CODE || "—" },
