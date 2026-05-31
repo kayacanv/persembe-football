@@ -27,6 +27,8 @@ import {
   UserPlus,
   Pencil,
   Calendar,
+  Landmark,
+  Copy,
 } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { toast } from "@/components/ui/use-toast"
@@ -58,6 +60,7 @@ import Link from "next/link"
 import { createCheckoutSession, verifyPaymentStatus, confirmManualPayment } from "@/app/actions/stripe-actions"
 import { updateMatchScore, updateMatchDate } from "@/app/actions/match-actions"
 import { getStripe } from "@/app/lib/stripe"
+import { paymentRef } from "@/app/lib/payment-ref"
 import type { User as UserType } from "@/app/lib/types"
 import { format, formatDistanceToNow } from "date-fns"
 import { tr } from "date-fns/locale"
@@ -148,7 +151,8 @@ export default function MatchPage({ params }: { params: { id: string } }) {
   const [playerToPay, setPlayerToPay] = useState<PlayerWithDetails | null>(null)
   const [processingPayment, setProcessingPayment] = useState(false)
   const [stripeError, setStripeError] = useState<string | null>(null)
-  const [paymentMethod, setPaymentMethod] = useState<"stripe" | "revolut">("revolut")
+  const [paymentMethod, setPaymentMethod] = useState<"stripe" | "revolut" | "starling">("revolut")
+  const [checkingStarling, setCheckingStarling] = useState(false)
   const [paidWithRevolut, setPaidWithRevolut] = useState(false)
   const [confirmingManualPayment, setConfirmingManualPayment] = useState(false)
 
@@ -669,6 +673,39 @@ export default function MatchPage({ params }: { params: { id: string } }) {
     } finally {
       setConfirmingManualPayment(false)
     }
+  }
+
+  // Starling: payment is confirmed automatically by the bank webhook. This just
+  // re-checks whether the transfer has landed yet and closes the dialog if paid.
+  const handleCheckStarlingPayment = async () => {
+    if (!playerToPay) return
+    try {
+      setCheckingStarling(true)
+      const updatedPlayers = await getPlayersForMatch(matchId)
+      setPlayers(updatedPlayers)
+      const me = updatedPlayers.find((p) => p.match_player_id === playerToPay.match_player_id)
+      if (me?.has_paid) {
+        toast({ title: "Ödeme alındı", description: "Banka havaleniz onaylandı." })
+        setPaymentDialogOpen(false)
+        setPlayerToPay(null)
+      } else {
+        toast({
+          title: "Ödeme bekleniyor",
+          description: "Havale henüz görünmüyor. Birkaç dakika sonra tekrar deneyin.",
+        })
+      }
+    } catch (error) {
+      console.error("Error checking Starling payment:", error)
+    } finally {
+      setCheckingStarling(false)
+    }
+  }
+
+  const copyToClipboard = (text: string, label: string) => {
+    navigator.clipboard?.writeText(text).then(
+      () => toast({ title: "Kopyalandı", description: `${label} panoya kopyalandı.` }),
+      () => {},
+    )
   }
 
   // Open payment dialog
@@ -1522,13 +1559,19 @@ export default function MatchPage({ params }: { params: { id: string } }) {
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-4">
-            <Tabs value={paymentMethod} onValueChange={(value) => setPaymentMethod(value as "stripe" | "revolut")}>
-              <TabsList className="grid w-full grid-cols-2">
+            <Tabs
+              value={paymentMethod}
+              onValueChange={(value) => setPaymentMethod(value as "stripe" | "revolut" | "starling")}
+            >
+              <TabsList className="grid w-full grid-cols-3">
                 <TabsTrigger value="revolut">
-                  <ExternalLink className="mr-2 h-4 w-4" /> Revolut
+                  <ExternalLink className="mr-1 h-4 w-4" /> Revolut
+                </TabsTrigger>
+                <TabsTrigger value="starling">
+                  <Landmark className="mr-1 h-4 w-4" /> Starling
                 </TabsTrigger>
                 <TabsTrigger value="stripe">
-                  <CreditCard className="mr-2 h-4 w-4" /> Kredi Kartı
+                  <CreditCard className="mr-1 h-4 w-4" /> Kart
                 </TabsTrigger>
               </TabsList>
 
@@ -1580,6 +1623,64 @@ export default function MatchPage({ params }: { params: { id: string } }) {
                       Zaten ödeme yaptım
                     </label>
                   </div>
+                </div>
+              </TabsContent>
+
+              {/* Starling Payment Tab — bank transfer auto-tracked via webhook */}
+              <TabsContent value="starling" className="space-y-4">
+                <div className="p-4 bg-gray-50 dark:bg-gray-900 rounded-lg border dark:border-gray-800">
+                  <div className="text-center mb-3">
+                    <p className="font-medium mb-1">Banka havalesi (Starling)</p>
+                    <p className="text-sm text-muted-foreground">
+                      Aşağıdaki hesaba <span className="font-semibold">açıklamayı birebir yazarak</span> havale yapın.
+                      Ödemeniz otomatik olarak onaylanır.
+                    </p>
+                    <p className="text-lg font-bold text-green-600 mt-2">£{match?.price.toFixed(2)}</p>
+                  </div>
+
+                  {(() => {
+                    const ref =
+                      playerToPay && match ? paymentRef(match.date, playerToPay.match_player_id) : ""
+                    const rows: { label: string; value: string; copy?: boolean }[] = [
+                      { label: "Hesap adı", value: process.env.NEXT_PUBLIC_STARLING_ACCOUNT_NAME || "—" },
+                      { label: "Sort code", value: process.env.NEXT_PUBLIC_STARLING_SORT_CODE || "—" },
+                      {
+                        label: "Hesap no",
+                        value: process.env.NEXT_PUBLIC_STARLING_ACCOUNT_NUMBER || "—",
+                        copy: true,
+                      },
+                      { label: "Açıklama (referans)", value: ref, copy: true },
+                    ]
+                    return (
+                      <div className="space-y-2">
+                        {rows.map((r) => (
+                          <div
+                            key={r.label}
+                            className="flex items-center justify-between gap-2 p-2 rounded-md bg-background border"
+                          >
+                            <div className="min-w-0">
+                              <p className="text-xs text-muted-foreground">{r.label}</p>
+                              <p className="text-sm font-mono font-medium truncate">{r.value}</p>
+                            </div>
+                            {r.copy && r.value && r.value !== "—" && (
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-8 w-8 shrink-0"
+                                onClick={() => copyToClipboard(r.value, r.label)}
+                              >
+                                <Copy className="h-4 w-4" />
+                              </Button>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    )
+                  })()}
+
+                  <p className="text-xs text-amber-600 dark:text-amber-400 mt-3">
+                    Önemli: Açıklama alanını değiştirmeden yazın; aksi halde ödemeniz otomatik eşleşmez.
+                  </p>
                 </div>
               </TabsContent>
 
@@ -1639,6 +1740,21 @@ export default function MatchPage({ params }: { params: { id: string } }) {
                   </>
                 ) : (
                   "Tamam"
+                )}
+              </Button>
+            )}
+            {paymentMethod === "starling" && (
+              <Button
+                onClick={handleCheckStarlingPayment}
+                disabled={checkingStarling}
+                className="bg-green-600 hover:bg-green-700"
+              >
+                {checkingStarling ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Kontrol ediliyor...
+                  </>
+                ) : (
+                  "Ödememi kontrol et"
                 )}
               </Button>
             )}
