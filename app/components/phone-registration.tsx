@@ -45,8 +45,8 @@ export function PhoneRegistration() {
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase()
-    if (!q) return users.slice(0, 8)
-    return users.filter((u) => u.name.toLowerCase().includes(q)).slice(0, 8)
+    if (!q) return users
+    return users.filter((u) => u.name.toLowerCase().includes(q))
   }, [users, search])
 
   function switchMode(next: Mode) {
