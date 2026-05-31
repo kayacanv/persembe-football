@@ -68,6 +68,16 @@ import { PlayerNameAutocomplete } from "@/app/components/player-name-autocomplet
 import { Textarea } from "@/components/ui/textarea"
 import MvpVoting from "@/app/components/mvp-voting"
 
+// Revolut (manual "mark as paid") is disabled for matches on/after 4 June 2026 —
+// from then on only Starling and Stripe are accepted. Older matches keep Revolut.
+const REVOLUT_CUTOFF = new Date(2026, 5, 4) // month is 0-indexed: 5 = June
+function isRevolutAllowed(match: { date: string } | null): boolean {
+  if (!match) return false
+  const [dd, mm, yyyy] = match.date.split(".").map(Number)
+  if (!dd || !mm || !yyyy) return true
+  return new Date(yyyy, mm - 1, dd) < REVOLUT_CUTOFF
+}
+
 export default function MatchPage({ params }: { params: { id: string } }) {
   const router = useRouter()
   const searchParams = useSearchParams()
@@ -712,7 +722,7 @@ export default function MatchPage({ params }: { params: { id: string } }) {
   const openPaymentDialog = (player: PlayerWithDetails) => {
     setPlayerToPay(player)
     setStripeError(null)
-    setPaymentMethod("revolut")
+    setPaymentMethod(isRevolutAllowed(match) ? "revolut" : "starling")
     setPaidWithRevolut(false)
     setPaymentDialogOpen(true)
   }
@@ -1004,6 +1014,7 @@ export default function MatchPage({ params }: { params: { id: string } }) {
 
   // Calculate Stripe price (base price + 0.20)
   const stripePrice = match.price + 0.2
+  const revolutAllowed = isRevolutAllowed(match)
 
   const renderPlayerList = (
     playerList: PlayerWithDetails[],
@@ -1563,10 +1574,12 @@ export default function MatchPage({ params }: { params: { id: string } }) {
               value={paymentMethod}
               onValueChange={(value) => setPaymentMethod(value as "stripe" | "revolut" | "starling")}
             >
-              <TabsList className="grid w-full grid-cols-3">
-                <TabsTrigger value="revolut">
-                  <ExternalLink className="mr-1 h-4 w-4" /> Revolut
-                </TabsTrigger>
+              <TabsList className={`grid w-full ${revolutAllowed ? "grid-cols-3" : "grid-cols-2"}`}>
+                {revolutAllowed && (
+                  <TabsTrigger value="revolut">
+                    <ExternalLink className="mr-1 h-4 w-4" /> Revolut
+                  </TabsTrigger>
+                )}
                 <TabsTrigger value="starling">
                   <Landmark className="mr-1 h-4 w-4" /> Starling
                 </TabsTrigger>
@@ -1575,7 +1588,8 @@ export default function MatchPage({ params }: { params: { id: string } }) {
                 </TabsTrigger>
               </TabsList>
 
-              {/* Revolut Payment Tab */}
+              {/* Revolut Payment Tab — only for matches before the 4 June 2026 cutoff */}
+              {revolutAllowed && (
               <TabsContent value="revolut" className="space-y-4">
                 <div className="p-4 bg-gray-50 dark:bg-gray-900 rounded-lg border dark:border-gray-800">
                   <div className="text-center mb-4">
@@ -1625,6 +1639,7 @@ export default function MatchPage({ params }: { params: { id: string } }) {
                   </div>
                 </div>
               </TabsContent>
+              )}
 
               {/* Starling Payment Tab — bank transfer auto-tracked via webhook */}
               <TabsContent value="starling" className="space-y-4">
