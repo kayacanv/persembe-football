@@ -6,12 +6,14 @@ import Link from "next/link"
 import { Loader2, ArrowLeft } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { getMatchByDate } from "@/app/lib/data-service"
+import { useTranslation } from "@/lib/i18n/useTranslation"
 
 // Matches a DD-MM-YYYY style date slug. Separators may be "-", ".", or "/".
 const DATE_SLUG = /^(\d{1,2})[-./](\d{1,2})[-./](\d{4})$/
 
 export default function DateRedirectPage({ params }: { params: { date: string } }) {
   const router = useRouter()
+  const { t } = useTranslation()
   const [notFound, setNotFound] = useState(false)
 
   useEffect(() => {
@@ -40,12 +42,12 @@ export default function DateRedirectPage({ params }: { params: { date: string } 
   if (notFound) {
     return (
       <div className="container max-w-md mx-auto px-4 py-8 text-center">
-        <h1 className="text-2xl font-bold mb-6">Maç Bulunamadı</h1>
-        <p className="mb-4">Bu tarihte bir maç bulunamadı.</p>
+        <h1 className="text-2xl font-bold mb-6">{t("error.matchNotFound")}</h1>
+        <p className="mb-4">{t("error.matchNotFoundForDate")}</p>
         <Link href="/" passHref>
           <Button>
             <ArrowLeft className="mr-2 h-4 w-4" />
-            Ana Sayfaya Dön
+            {t("common.backHome")}
           </Button>
         </Link>
       </div>
@@ -55,7 +57,7 @@ export default function DateRedirectPage({ params }: { params: { date: string } 
   return (
     <div className="container max-w-md mx-auto px-4 py-8 flex flex-col items-center justify-center min-h-[50vh]">
       <Loader2 className="h-8 w-8 animate-spin text-primary mb-4" />
-      <p>Yönlendiriliyor...</p>
+      <p>{t("common.redirecting")}</p>
     </div>
   )
 }

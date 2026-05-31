@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button"
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import type { User } from "@/app/lib/types"
+import { useTranslation } from "@/lib/i18n/useTranslation"
 
 interface PlayerNameAutocompleteProps {
   users: User[]
@@ -23,6 +24,7 @@ export function PlayerNameAutocomplete({
   onSelectUser,
   disabled = false,
 }: PlayerNameAutocompleteProps) {
+  const { t } = useTranslation()
   const [open, setOpen] = React.useState(false)
 
   // Filter users based on the input value
@@ -38,15 +40,15 @@ export function PlayerNameAutocomplete({
           className="w-full justify-between"
           disabled={disabled}
         >
-          {value || "İsim Soyisim"}
+          {value || t("common.namePlaceholder")}
           <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
         </Button>
       </PopoverTrigger>
       <PopoverContent className="w-full p-0">
         <Command>
-          <CommandInput placeholder="İsim ara..." value={value} onValueChange={onChange} className="h-9" />
+          <CommandInput placeholder={t("common.searchName")} value={value} onValueChange={onChange} className="h-9" />
           <CommandList>
-            <CommandEmpty>Oyuncu bulunamadı</CommandEmpty>
+            <CommandEmpty>{t("common.playerNotFound")}</CommandEmpty>
             <CommandGroup className="max-h-60 overflow-auto">
               {filteredUsers.map((user) => (
                 <CommandItem
@@ -70,7 +72,7 @@ export function PlayerNameAutocomplete({
                   }}
                   className="text-muted-foreground italic"
                 >
-                  Yeni oyuncu: {value}
+                  {t("common.newPlayer", { name: value })}
                 </CommandItem>
               )}
             </CommandGroup>

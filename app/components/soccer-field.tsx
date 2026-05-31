@@ -7,6 +7,7 @@ import { useState } from "react"
 import type { PlayerWithDetails } from "@/app/lib/types"
 import { X, ChevronDown } from "lucide-react"
 import FifaCard from "@/app/components/fifa-card/fifa-card"
+import { useTranslation } from "@/lib/i18n/useTranslation"
 
 interface SoccerFieldProps {
   team: "A" | "B"
@@ -23,6 +24,7 @@ export default function SoccerField({
   onAssignPlayer,
   unassignedPlayers,
 }: SoccerFieldProps) {
+  const { t } = useTranslation()
   const [activePosition, setActivePosition] = useState<string | null>(null)
 
   const handlePositionClick = (positionId: string) => {
@@ -66,7 +68,7 @@ export default function SoccerField({
             id={`forward-left-${team}`}
             player={positions["forward-left"]}
             team={team}
-            label="Sol Forvet"
+            label={t("positions.forwardLeft")}
             onRemove={() => onRemovePlayer("forward-left")}
             isActive={activePosition === `forward-left-${team}`}
             onClick={() => handlePositionClick(`forward-left-${team}`)}
@@ -77,7 +79,7 @@ export default function SoccerField({
             id={`forward-center-${team}`}
             player={positions["forward-center"]}
             team={team}
-            label="Orta Forvet"
+            label={t("positions.forwardCenter")}
             onRemove={() => onRemovePlayer("forward-center")}
             isActive={activePosition === `forward-center-${team}`}
             onClick={() => handlePositionClick(`forward-center-${team}`)}
@@ -88,7 +90,7 @@ export default function SoccerField({
             id={`forward-right-${team}`}
             player={positions["forward-right"]}
             team={team}
-            label="Sağ Forvet"
+            label={t("positions.forwardRight")}
             onRemove={() => onRemovePlayer("forward-right")}
             isActive={activePosition === `forward-right-${team}`}
             onClick={() => handlePositionClick(`forward-right-${team}`)}
@@ -103,7 +105,7 @@ export default function SoccerField({
             id={`midfield-left-${team}`}
             player={positions["midfield-left"]}
             team={team}
-            label="Sol Orta"
+            label={t("positions.midfieldLeft")}
             onRemove={() => onRemovePlayer("midfield-left")}
             isActive={activePosition === `midfield-left-${team}`}
             onClick={() => handlePositionClick(`midfield-left-${team}`)}
@@ -114,7 +116,7 @@ export default function SoccerField({
             id={`midfield-center-${team}`}
             player={positions["midfield-center"]}
             team={team}
-            label="Orta Saha"
+            label={t("positions.midfieldCenter")}
             onRemove={() => onRemovePlayer("midfield-center")}
             isActive={activePosition === `midfield-center-${team}`}
             onClick={() => handlePositionClick(`midfield-center-${team}`)}
@@ -125,7 +127,7 @@ export default function SoccerField({
             id={`midfield-right-${team}`}
             player={positions["midfield-right"]}
             team={team}
-            label="Sağ Orta"
+            label={t("positions.midfieldRight")}
             onRemove={() => onRemovePlayer("midfield-right")}
             isActive={activePosition === `midfield-right-${team}`}
             onClick={() => handlePositionClick(`midfield-right-${team}`)}
@@ -140,7 +142,7 @@ export default function SoccerField({
             id={`defense-left-${team}`}
             player={positions["defense-left"]}
             team={team}
-            label="Sol Defans"
+            label={t("positions.defenseLeft")}
             onRemove={() => onRemovePlayer("defense-left")}
             isActive={activePosition === `defense-left-${team}`}
             onClick={() => handlePositionClick(`defense-left-${team}`)}
@@ -151,7 +153,7 @@ export default function SoccerField({
             id={`defense-center-${team}`}
             player={positions["defense-center"]}
             team={team}
-            label="Orta Defans"
+            label={t("positions.defenseCenter")}
             onRemove={() => onRemovePlayer("defense-center")}
             isActive={activePosition === `defense-center-${team}`}
             onClick={() => handlePositionClick(`defense-center-${team}`)}
@@ -162,7 +164,7 @@ export default function SoccerField({
             id={`defense-right-${team}`}
             player={positions["defense-right"]}
             team={team}
-            label="Sağ Defans"
+            label={t("positions.defenseRight")}
             onRemove={() => onRemovePlayer("defense-right")}
             isActive={activePosition === `defense-right-${team}`}
             onClick={() => handlePositionClick(`defense-right-${team}`)}
@@ -198,6 +200,7 @@ function PositionDroppable({
   unassignedPlayers,
   onPlayerSelect,
 }: PositionDroppableProps) {
+  const { t } = useTranslation()
   const { setNodeRef, isOver } = useDroppable({
     id,
   })
@@ -231,7 +234,7 @@ function PositionDroppable({
           <div className="absolute inset-0 bg-white/95 dark:bg-gray-800/95 rounded-md shadow-lg z-10">
             <div className="p-2 max-h-48 overflow-y-auto">
               <div className="text-xs font-medium mb-2 text-gray-700 dark:text-gray-300 flex justify-between items-center">
-                <span>Oyuncu Seç</span>
+                <span>{t("positions.selectPlayer")}</span>
                 <button
                   onClick={(e) => {
                     e.stopPropagation()

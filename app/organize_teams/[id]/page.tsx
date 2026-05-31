@@ -25,6 +25,8 @@ import { saveTeamPositions } from "@/app/actions/team-actions"
 import { toast } from "@/components/ui/use-toast"
 import { Toaster } from "@/components/ui/toaster"
 import TeamPowerComparison from "@/app/components/team-power-comparison"
+import { useTranslation } from "@/lib/i18n/useTranslation"
+import { formatMatchDate } from "@/lib/i18n/format"
 
 // Define the positions for a 3-3-3 formation
 const positionIds = [
@@ -40,6 +42,7 @@ const positionIds = [
 ]
 
 export default function OrganizeTeamsPage() {
+  const { t, locale } = useTranslation()
   const params = useParams()
   const matchId = params.id as string
 
@@ -359,21 +362,21 @@ export default function OrganizeTeamsPage() {
 
       if (result.success) {
         toast({
-          title: "Başarılı",
-          description: "Takım pozisyonları kaydedildi.",
+          title: t("common.success"),
+          description: t("organize.saved"),
         })
       } else {
         toast({
-          title: "Hata",
-          description: result.error || "Takım pozisyonları kaydedilirken bir hata oluştu.",
+          title: t("common.error"),
+          description: result.error || t("organize.saveError"),
           variant: "destructive",
         })
       }
     } catch (error) {
       console.error("Error saving positions:", error)
       toast({
-        title: "Hata",
-        description: "Takım pozisyonları kaydedilirken bir hata oluştu.",
+        title: t("common.error"),
+        description: t("organize.saveError"),
         variant: "destructive",
       })
     } finally {
@@ -385,7 +388,7 @@ export default function OrganizeTeamsPage() {
     return (
       <div className="container max-w-7xl mx-auto px-4 py-8 flex flex-col items-center justify-center min-h-[50vh]">
         <Loader2 className="h-8 w-8 animate-spin text-primary mb-4" />
-        <p>Yükleniyor...</p>
+        <p>{t("common.loading")}</p>
       </div>
     )
   }
@@ -393,12 +396,12 @@ export default function OrganizeTeamsPage() {
   if (!match) {
     return (
       <div className="container max-w-7xl mx-auto px-4 py-8 text-center">
-        <h1 className="text-2xl font-bold mb-6">Maç Bulunamadı</h1>
-        <p className="mb-4">Belirtilen ID ile bir maç bulunamadı.</p>
+        <h1 className="text-2xl font-bold mb-6">{t("error.matchNotFound")}</h1>
+        <p className="mb-4">{t("error.matchNotFoundDesc")}</p>
         <Link href="/" passHref>
           <Button>
             <ArrowLeft className="mr-2 h-4 w-4" />
-            Ana Sayfaya Dön
+            {t("common.backHome")}
           </Button>
         </Link>
       </div>
@@ -419,9 +422,9 @@ export default function OrganizeTeamsPage() {
               </Button>
             </Link>
             <div className="min-w-0 flex-1">
-              <h1 className="text-base font-bold leading-tight truncate">Takımları Düzenle</h1>
+              <h1 className="text-base font-bold leading-tight truncate">{t("organize.pageTitle")}</h1>
               <p className="text-xs text-muted-foreground leading-tight">
-                {match.date} · {match.time}
+                {t("organize.matchInfo", { date: formatMatchDate(match.date, locale), time: match.time })}
               </p>
             </div>
             <Button
@@ -431,16 +434,16 @@ export default function OrganizeTeamsPage() {
               disabled={saving}
             >
               {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
-              <span className="ml-1.5">Kaydet</span>
+              <span className="ml-1.5">{t("common.save")}</span>
             </Button>
           </div>
           <div className="flex gap-2 mt-2">
             <Button size="sm" variant="secondary" className="flex-1" onClick={autoAssignPlayers}>
               <Users className="mr-1.5 h-4 w-4" />
-              Otomatik Oluştur
+              {t("organize.autoAssign")}
             </Button>
             <Button size="sm" variant="outline" className="flex-1" onClick={resetAssignments}>
-              Sıfırla
+              {t("organize.reset")}
             </Button>
           </div>
         </div>
@@ -452,7 +455,7 @@ export default function OrganizeTeamsPage() {
           <Card className="mb-4 overflow-hidden">
             <CardHeader className="py-3">
               <CardTitle className="text-sm flex items-center gap-2">
-                <span>Atanmamış Oyuncular</span>
+                <span>{t("organize.unassignedTitle")}</span>
                 <span className="inline-flex items-center justify-center rounded-full bg-primary/10 text-primary text-xs font-semibold px-2 py-0.5">
                   {unassignedPlayers.length}
                 </span>
@@ -461,7 +464,7 @@ export default function OrganizeTeamsPage() {
             <CardContent className="p-3 pt-0">
               {unassignedPlayers.length === 0 ? (
                 <div className="text-center py-3 text-sm text-muted-foreground">
-                  Tüm oyuncular takımlara atandı
+                  {t("organize.allAssigned")}
                 </div>
               ) : (
                 <div className="flex gap-2 overflow-x-auto pb-1 -mx-1 px-1 snap-x">
@@ -481,7 +484,7 @@ export default function OrganizeTeamsPage() {
             <Card className="overflow-hidden border-blue-200 dark:border-blue-900">
               <CardHeader className="py-3 bg-blue-50 dark:bg-blue-950/50">
                 <CardTitle className="text-blue-700 dark:text-blue-300 text-base flex items-center justify-between">
-                  <span>Takım A</span>
+                  <span>{t("team.a")}</span>
                   <span className="text-xs font-medium text-blue-600/70 dark:text-blue-400/70">
                     {getTeamPlayers("A").length}/9
                   </span>
@@ -500,7 +503,7 @@ export default function OrganizeTeamsPage() {
                 <PlayStyleBar players={getTeamPlayers("A")} team="A" />
               ) : (
                 <div className="px-4 pb-3 text-center text-xs text-muted-foreground">
-                  Oyun stili tüm oyuncular atandığında görünecek
+                  {t("organize.playStylePlaceholder")}
                 </div>
               )}
             </Card>
@@ -509,7 +512,7 @@ export default function OrganizeTeamsPage() {
             <Card className="overflow-hidden border-red-200 dark:border-red-900">
               <CardHeader className="py-3 bg-red-50 dark:bg-red-950/50">
                 <CardTitle className="text-red-700 dark:text-red-300 text-base flex items-center justify-between">
-                  <span>Takım B</span>
+                  <span>{t("team.b")}</span>
                   <span className="text-xs font-medium text-red-600/70 dark:text-red-400/70">
                     {getTeamPlayers("B").length}/9
                   </span>
@@ -528,7 +531,7 @@ export default function OrganizeTeamsPage() {
                 <PlayStyleBar players={getTeamPlayers("B")} team="B" />
               ) : (
                 <div className="px-4 pb-3 text-center text-xs text-muted-foreground">
-                  Oyun stili tüm oyuncular atandığında görünecek
+                  {t("organize.playStylePlaceholder")}
                 </div>
               )}
             </Card>
@@ -554,9 +557,9 @@ export default function OrganizeTeamsPage() {
             <CardContent className="py-6">
               <div className="text-center text-muted-foreground">
                 <Users className="mx-auto h-10 w-10 mb-3 opacity-50" />
-                <h3 className="text-base font-medium mb-1">Takım Analizi</h3>
+                <h3 className="text-base font-medium mb-1">{t("organize.teamAnalysis")}</h3>
                 <p className="text-sm">
-                  Güç karşılaştırması tüm oyuncular ({assignedCount}/{players.length}) atandığında görünecek.
+                  {t("organize.powerAnalysisPlaceholder", { assigned: assignedCount, total: players.length })}
                 </p>
               </div>
             </CardContent>

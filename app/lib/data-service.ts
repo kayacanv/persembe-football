@@ -572,6 +572,80 @@ export async function getAllUsers(): Promise<User[]> {
   return data || []
 }
 
+// Lightweight {id, name} list for the "link phone to existing player" picker.
+// Selects no phone/email on purpose — numbers must never reach the client UI.
+export async function getUserNames(): Promise<Array<{ id: string; name: string }>> {
+  const supabase = getSupabaseBrowserClient()
+  if (!supabase) {
+    console.error("Supabase client is not initialized")
+    return []
+  }
+
+  const { data, error } = await supabase.from("users").select("id, name").order("name")
+
+  if (error) {
+    console.error("Error fetching user names:", error)
+    return []
+  }
+
+  return data || []
+}
+
+// Result of a phone write. `duplicate` means the E.164 number is already on file for
+// another player (the UNIQUE constraint on users.phone fired).
+export type PhoneSaveResult = { ok: true; userId: string } | { ok: false; reason: "duplicate" | "error" }
+
+const UNIQUE_VIOLATION = "23505"
+
+// Create a brand-new player with a phone number already on file. `phone` must be a
+// canonical E.164 string (see app/lib/phone.ts → toE164). Card stats fall back to
+// their DB defaults; power/position_weight match registerPlayerForMatch's defaults.
+export async function createUserWithPhone(
+  name: string,
+  phone: string,
+  position: Position = "",
+): Promise<PhoneSaveResult> {
+  const supabase = getSupabaseBrowserClient()
+  if (!supabase) {
+    console.error("Supabase client is not initialized")
+    return { ok: false, reason: "error" }
+  }
+
+  const { data, error } = await supabase
+    .from("users")
+    .insert({ name: name.trim(), phone, position, power: 5, position_weight: 3 })
+    .select("id")
+    .single()
+
+  if (error) {
+    if (error.code === UNIQUE_VIOLATION) return { ok: false, reason: "duplicate" }
+    console.error("Error creating user with phone:", error)
+    return { ok: false, reason: "error" }
+  }
+
+  return { ok: true, userId: data.id }
+}
+
+// Set/replace an existing player's phone (canonical E.164). Surfaces the UNIQUE
+// violation so the UI can say "that number is already registered".
+export async function setUserPhone(userId: string, phone: string): Promise<PhoneSaveResult> {
+  const supabase = getSupabaseBrowserClient()
+  if (!supabase) {
+    console.error("Supabase client is not initialized")
+    return { ok: false, reason: "error" }
+  }
+
+  const { error } = await supabase.from("users").update({ phone }).eq("id", userId)
+
+  if (error) {
+    if (error.code === UNIQUE_VIOLATION) return { ok: false, reason: "duplicate" }
+    console.error("Error setting user phone:", error)
+    return { ok: false, reason: "error" }
+  }
+
+  return { ok: true, userId }
+}
+
 // Get active player count for a match
 export async function getActivePlayerCount(matchId: string): Promise<number> {
   const supabase = getSupabaseBrowserClient()

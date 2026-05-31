@@ -13,6 +13,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import { toast } from "@/components/ui/use-toast"
+import { useTranslation } from "@/lib/i18n/useTranslation"
 import FifaCard from "@/app/components/fifa-card/fifa-card"
 import {
   castVote,
@@ -27,6 +28,7 @@ interface MvpVotingProps {
 }
 
 export default function MvpVoting({ match }: MvpVotingProps) {
+  const { t } = useTranslation()
   const window_ = getVotingWindow(match)
   const [counts, setCounts] = useState<MvpVoteCount[]>([])
   const [myVote, setMyVote] = useState<string | null>(null)
@@ -83,9 +85,9 @@ export default function MvpVoting({ match }: MvpVotingProps) {
           .map((c) => (c.candidateId === candidateId ? { ...c, votes: Math.max(0, c.votes - 1) } : c))
           .sort((a, b) => b.votes - a.votes),
       )
-      toast({ title: "Hata", description: "Oy verilemedi, tekrar dene.", variant: "destructive" })
+      toast({ title: t("common.error"), description: t("mvp.voteFailed"), variant: "destructive" })
     } else {
-      toast({ title: "Oyun alındı", description: "MVP oyun kaydedildi." })
+      toast({ title: t("mvp.voteReceived"), description: t("mvp.voteSaved") })
     }
     setVoting(null)
   }
@@ -96,9 +98,9 @@ export default function MvpVoting({ match }: MvpVotingProps) {
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
-            <Star className="h-5 w-5 text-yellow-500" /> Maçın MVP'si
+            <Star className="h-5 w-5 text-yellow-500" /> {t("mvp.title")}
           </CardTitle>
-          <CardDescription>Oylama maçtan sonra açılır</CardDescription>
+          <CardDescription>{t("mvp.notYetOpen")}</CardDescription>
         </CardHeader>
       </Card>
     )
@@ -109,11 +111,11 @@ export default function MvpVoting({ match }: MvpVotingProps) {
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
-            <Star className="h-5 w-5 text-yellow-500" /> Maçın MVP'si
+            <Star className="h-5 w-5 text-yellow-500" /> {t("mvp.title")}
           </CardTitle>
         </CardHeader>
         <CardContent className="flex items-center justify-center py-6 text-muted-foreground">
-          <Loader2 className="mr-2 h-5 w-5 animate-spin" /> Yükleniyor...
+          <Loader2 className="mr-2 h-5 w-5 animate-spin" /> {t("common.loading")}
         </CardContent>
       </Card>
     )
@@ -128,9 +130,9 @@ export default function MvpVoting({ match }: MvpVotingProps) {
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
-            <Trophy className="h-5 w-5 text-yellow-500" /> Maçın MVP'si
+            <Trophy className="h-5 w-5 text-yellow-500" /> {t("mvp.title")}
           </CardTitle>
-          <CardDescription>Oylama sona erdi</CardDescription>
+          <CardDescription>{t("mvp.closed")}</CardDescription>
         </CardHeader>
         <CardContent>
           {winner ? (
@@ -140,7 +142,7 @@ export default function MvpVoting({ match }: MvpVotingProps) {
               </div>
               <div className="text-center">
                 <div className="text-lg font-semibold">{winner.name}</div>
-                <div className="text-sm text-muted-foreground">{winner.votes} oy</div>
+                <div className="text-sm text-muted-foreground">{t("mvp.voteCount", { count: winner.votes })}</div>
               </div>
               {counts.length > 1 && counts[1].votes > 0 && (
                 <div className="flex flex-wrap justify-center gap-2">
@@ -148,7 +150,7 @@ export default function MvpVoting({ match }: MvpVotingProps) {
                     (c) =>
                       c.votes > 0 && (
                         <Badge key={c.candidateId} variant="outline">
-                          {c.name} · {c.votes}
+                          {c.name} · {t("mvp.voteCount", { count: c.votes })}
                         </Badge>
                       ),
                   )}
@@ -156,7 +158,7 @@ export default function MvpVoting({ match }: MvpVotingProps) {
               )}
             </div>
           ) : (
-            <p className="text-center text-muted-foreground py-4">Bu maç için MVP oyu verilmedi</p>
+            <p className="text-center text-muted-foreground py-4">{t("mvp.noWinner")}</p>
           )}
         </CardContent>
       </Card>
@@ -170,9 +172,9 @@ export default function MvpVoting({ match }: MvpVotingProps) {
     <Card>
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
-          <Star className="h-5 w-5 text-yellow-500" /> Maçın MVP'si
+          <Star className="h-5 w-5 text-yellow-500" /> {t("mvp.title")}
         </CardTitle>
-        <CardDescription>{myVote ? "Oyun alındı — canlı sonuçlar" : "En çok oy alan 3 oyuncu"}</CardDescription>
+        <CardDescription>{myVote ? t("mvp.voted") : t("mvp.top3")}</CardDescription>
       </CardHeader>
       <CardContent>
         <div className="space-y-2">
@@ -193,29 +195,29 @@ export default function MvpVoting({ match }: MvpVotingProps) {
                     {isMine && <Star className="h-4 w-4 text-yellow-500 fill-yellow-500" />}
                     {c.name}
                   </span>
-                  <span className="text-sm text-muted-foreground">{c.votes} oy</span>
+                  <span className="text-sm text-muted-foreground">{t("mvp.voteCount", { count: c.votes })}</span>
                 </div>
               </div>
             )
           })}
           {top3.length === 0 && (
-            <p className="text-center text-sm text-muted-foreground py-2">Henüz oy verilmedi</p>
+            <p className="text-center text-sm text-muted-foreground py-2">{t("mvp.noVotes")}</p>
           )}
         </div>
 
-        <p className="mt-3 text-center text-xs text-muted-foreground">Toplam {totalVotes} oy</p>
+        <p className="mt-3 text-center text-xs text-muted-foreground">{t("mvp.totalVotes", { count: totalVotes })}</p>
 
         {!myVote && (
           <Button className="mt-3 w-full" onClick={() => setPickerOpen(true)}>
-            <Star className="mr-2 h-4 w-4" /> MVP Oyla
+            <Star className="mr-2 h-4 w-4" /> {t("mvp.voteButton")}
           </Button>
         )}
 
         <Dialog open={pickerOpen} onOpenChange={setPickerOpen}>
           <DialogContent className="max-h-[80vh] overflow-y-auto">
             <DialogHeader>
-              <DialogTitle>Maçın MVP'sini seç</DialogTitle>
-              <DialogDescription>Bir oyuncuya oy ver. Oyun değiştirilemez.</DialogDescription>
+              <DialogTitle>{t("mvp.chooseTitle")}</DialogTitle>
+              <DialogDescription>{t("mvp.chooseDesc")}</DialogDescription>
             </DialogHeader>
             <div className="space-y-2">
               {counts.map((c) => {
@@ -236,7 +238,8 @@ export default function MvpVoting({ match }: MvpVotingProps) {
                     <div className="relative flex items-center justify-between">
                       <span className="font-medium">{c.name}</span>
                       <span className="text-sm text-muted-foreground">
-                        {c.votes} oy{voting === c.candidateId ? "…" : ""}
+                        {t("mvp.voteCount", { count: c.votes })}
+                        {voting === c.candidateId ? "…" : ""}
                       </span>
                     </div>
                   </button>

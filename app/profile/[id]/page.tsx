@@ -6,7 +6,6 @@ import { useState, useEffect, useRef } from "react"
 import { useParams, useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Badge } from "@/components/ui/badge"
@@ -15,8 +14,7 @@ import { Toaster } from "@/components/ui/toaster"
 import {
   ArrowLeft,
   User,
-  Phone,
-  Mail,
+  Lock,
   Trophy,
   Calendar,
   Clock,
@@ -41,7 +39,6 @@ import {
 import Link from "next/link"
 import {
   getUserById,
-  updateUserProfile,
   updateUserPhoto,
   getPlayerMatchHistory,
   getPlayerStats,
@@ -49,15 +46,20 @@ import {
   getUnpaidMatchesCount,
   updateUserCard,
 } from "@/app/lib/profile-service"
+import { setUserPhone } from "@/app/lib/data-service"
 import { removeBackgroundToCutout } from "@/app/lib/storage-service"
 import { getPlayerMvpCount } from "@/app/lib/mvp-service"
 import type { User as UserType, PlayerMatchSummary, PlayerStats, TeammateStats } from "@/app/lib/types"
 import FifaCard from "@/app/components/fifa-card/fifa-card"
 import FifaCardEditor from "@/app/components/fifa-card/fifa-card-editor"
+import { CountryPhoneInput } from "@/app/components/phone-input"
+import { DEFAULT_DIAL, maskPhone, toE164 } from "@/app/lib/phone"
+import { useTranslation } from "@/lib/i18n/useTranslation"
 
 export default function PlayerProfilePage() {
   const params = useParams()
   const router = useRouter()
+  const { t } = useTranslation()
   const playerId = params.id as string
 
   // State
@@ -70,9 +72,11 @@ export default function PlayerProfilePage() {
   const [unpaidMatchesCount, setUnpaidMatchesCount] = useState(0)
   const [mvpCount, setMvpCount] = useState(0)
 
-  // Form state
-  const [phone, setPhone] = useState("")
-  const [email, setEmail] = useState("")
+  // Contact form — write-only. We never pre-fill the stored number (profiles are
+  // public): the field starts blank with the UK default, and a masked hint shows
+  // whether a number is already on file.
+  const [dial, setDial] = useState(DEFAULT_DIAL)
+  const [national, setNational] = useState("")
   const [updatingContact, setUpdatingContact] = useState(false)
 
   // Photo upload state
@@ -88,13 +92,11 @@ export default function PlayerProfilePage() {
         setLoading(true)
         const userData = await getUserById(playerId)
         if (!userData) {
-          toast({ title: "Hata", description: "Oyuncu bulunamadı.", variant: "destructive" })
+          toast({ title: t("common.error"), description: t("profile.playerNotFoundToast"), variant: "destructive" })
           router.push("/")
           return
         }
         setUser(userData)
-        setPhone(userData.phone || "")
-        setEmail(userData.email || "")
 
         const [history, stats, teammatesData, unpaidCount, mvpAwards] = await Promise.all([
           getPlayerMatchHistory(playerId),
@@ -110,7 +112,7 @@ export default function PlayerProfilePage() {
         setMvpCount(mvpAwards)
       } catch (error) {
         console.error("Error loading player data:", error)
-        toast({ title: "Hata", description: "Veri yüklenirken bir hata oluştu.", variant: "destructive" })
+        toast({ title: t("common.error"), description: t("profile.dataLoadError"), variant: "destructive" })
       } finally {
         setLoading(false)
       }
@@ -118,21 +120,31 @@ export default function PlayerProfilePage() {
     loadData()
   }, [playerId, router])
 
-  // Handle contact info update
-  const handleUpdateContact = async () => {
+  // Save/replace the player's phone in canonical E.164 (write-only — see state above).
+  const handleSavePhone = async () => {
     if (!user) return
+    const phone = toE164(dial, national)
+    if (!phone) {
+      toast({ title: t("common.error"), description: t("contact.errorPhoneRequired"), variant: "destructive" })
+      return
+    }
     try {
       setUpdatingContact(true)
-      const success = await updateUserProfile(playerId, { phone, email })
-      if (success) {
-        toast({ title: "Başarılı", description: "İletişim bilgileri güncellendi." })
-        setUser((prev) => (prev ? { ...prev, phone, email } : null))
+      const res = await setUserPhone(playerId, phone)
+      if (res.ok) {
+        toast({ title: t("common.success"), description: t("profile.phoneSaved") })
+        setUser((prev) => (prev ? { ...prev, phone } : null))
+        setNational("") // keep the editor write-only
       } else {
-        toast({ title: "Hata", description: "Bilgiler güncellenirken bir hata oluştu.", variant: "destructive" })
+        toast({
+          title: t("common.error"),
+          description: res.reason === "duplicate" ? t("contact.errorDuplicate") : t("profile.contactUpdateError"),
+          variant: "destructive",
+        })
       }
     } catch (error) {
-      console.error("Error updating contact info:", error)
-      toast({ title: "Hata", description: "Bilgiler güncellenirken bir hata oluştu.", variant: "destructive" })
+      console.error("Error saving phone:", error)
+      toast({ title: t("common.error"), description: t("profile.contactUpdateError"), variant: "destructive" })
     } finally {
       setUpdatingContact(false)
     }
@@ -143,13 +155,13 @@ export default function PlayerProfilePage() {
     if (event.target.files && event.target.files[0]) {
       const file = event.target.files[0]
       if (file.size > 5 * 1024 * 1024) {
-        toast({ title: "Hata", description: "Dosya boyutu 5MB'den büyük olamaz.", variant: "destructive" })
+        toast({ title: t("common.error"), description: t("profile.fileTooLarge"), variant: "destructive" })
         return
       }
       if (!["image/jpeg", "image/png", "image/webp"].includes(file.type)) {
         toast({
-          title: "Hata",
-          description: "Sadece JPG, PNG, veya WEBP formatında resim yükleyebilirsiniz.",
+          title: t("common.error"),
+          description: t("profile.invalidFormat"),
           variant: "destructive",
         })
         return
@@ -165,26 +177,26 @@ export default function PlayerProfilePage() {
       setUploadingPhoto(true)
       // Remove the background in-browser so the photo becomes a clean cutout that
       // composites into the live card. Falls back to the original file on failure.
-      setBgStatus("Arka plan kaldırılıyor…")
+      setBgStatus(t("profile.removingBg"))
       const cutout = await removeBackgroundToCutout(selectedFile, (_stage, ratio) => {
-        setBgStatus(`Arka plan kaldırılıyor… %${Math.round(ratio * 100)}`)
+        setBgStatus(t("profile.removingBgProgress", { progress: Math.round(ratio * 100) }))
       })
-      setBgStatus("Yükleniyor…")
+      setBgStatus(t("profile.uploading"))
       const newPhotoUrl = await updateUserPhoto(user.id, cutout, user.photo_url)
       if (newPhotoUrl) {
         // A fresh cutout should composite into the live card, not be treated as a
         // pre-baked card image — clear the legacy baked flag.
         await updateUserCard(user.id, { card_baked: false })
-        toast({ title: "Başarılı", description: "Profil fotoğrafı güncellendi." })
+        toast({ title: t("common.success"), description: t("profile.photoUpdated") })
         setUser((prev) => (prev ? { ...prev, photo_url: newPhotoUrl, card_baked: false } : null))
         setSelectedFile(null)
         if (fileInputRef.current) fileInputRef.current.value = ""
       } else {
-        toast({ title: "Hata", description: "Fotoğraf yüklenirken bir hata oluştu.", variant: "destructive" })
+        toast({ title: t("common.error"), description: t("profile.photoUploadError"), variant: "destructive" })
       }
     } catch (error) {
       console.error("Error uploading photo:", error)
-      toast({ title: "Hata", description: "Fotoğraf yüklenirken bir hata oluştu.", variant: "destructive" })
+      toast({ title: t("common.error"), description: t("profile.photoUploadError"), variant: "destructive" })
     } finally {
       setUploadingPhoto(false)
       setBgStatus(null)
@@ -197,17 +209,11 @@ export default function PlayerProfilePage() {
     return `${date.getDate().toString().padStart(2, "0")}.${(date.getMonth() + 1).toString().padStart(2, "0")}.${date.getFullYear()}`
   }
 
-  // Check if a phone number is auto-generated
-  const isAutoGeneratedPhone = (phone: string) => phone && phone.startsWith("no-phone-")
-
-  // Format phone for display
-  const formatPhoneForDisplay = (phone: string) => (isAutoGeneratedPhone(phone) ? "" : phone)
-
   if (loading) {
     return (
       <div className="container max-w-4xl mx-auto px-4 py-8 flex flex-col items-center justify-center min-h-[70vh]">
         <Loader2 className="h-12 w-12 animate-spin text-primary mb-6" />
-        <p className="text-lg">Oyuncu profili yükleniyor...</p>
+        <p className="text-lg">{t("profile.loading")}</p>
       </div>
     )
   }
@@ -215,12 +221,12 @@ export default function PlayerProfilePage() {
   if (!user) {
     return (
       <div className="container max-w-3xl mx-auto px-4 py-8 text-center">
-        <h1 className="text-2xl font-bold mb-6">Oyuncu Bulunamadı</h1>
-        <p className="mb-4">Belirtilen ID ile bir oyuncu bulunamadı.</p>
+        <h1 className="text-2xl font-bold mb-6">{t("error.playerNotFoundTitle")}</h1>
+        <p className="mb-4">{t("error.playerNotFoundDesc")}</p>
         <Link href="/" passHref>
           <Button>
             <ArrowLeft className="mr-2 h-4 w-4" />
-            Ana Sayfaya Dön
+            {t("common.backHome")}
           </Button>
         </Link>
       </div>
@@ -233,7 +239,7 @@ export default function PlayerProfilePage() {
         <Link href="/" passHref>
           <Button variant="ghost" size="sm">
             <ArrowLeft className="mr-2 h-4 w-4" />
-            Geri
+            {t("common.back")}
           </Button>
         </Link>
       </div>
@@ -257,7 +263,7 @@ export default function PlayerProfilePage() {
             onClick={() => fileInputRef.current?.click()}
             disabled={uploadingPhoto}
           >
-            <Edit3 className="mr-2 h-4 w-4" /> Fotoğrafı Değiştir
+            <Edit3 className="mr-2 h-4 w-4" /> {t("profile.changePhoto")}
           </Button>
           {selectedFile && (
             <Button
@@ -267,11 +273,12 @@ export default function PlayerProfilePage() {
             >
               {uploadingPhoto ? (
                 <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" /> {bgStatus ?? "Yükleniyor..."}
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" /> {bgStatus ?? t("common.loading")}
                 </>
               ) : (
                 <>
-                  <UploadCloud className="mr-2 h-4 w-4" /> Yükle: {selectedFile.name.substring(0, 20)}...
+                  <UploadCloud className="mr-2 h-4 w-4" />{" "}
+                  {t("profile.uploadFile", { filename: selectedFile.name.substring(0, 20) })}
                 </>
               )}
             </Button>
@@ -282,40 +289,31 @@ export default function PlayerProfilePage() {
             onClick={() => setShowPhotoInstructions(!showPhotoInstructions)}
           >
             {showPhotoInstructions ? <EyeOff className="mr-2 h-4 w-4" /> : <Eye className="mr-2 h-4 w-4" />}
-            {showPhotoInstructions ? "Fotoğraf Talimatlarını Gizle" : "Fotoğraf Talimatlarını Göster"}
+            {showPhotoInstructions ? t("profile.hidePhotoTips") : t("profile.showPhotoTips")}
           </Button>
           {showPhotoInstructions && (
             <Card className="mb-6 bg-blue-50 dark:bg-blue-900/30 border-blue-200 dark:border-blue-700/50">
               <CardHeader className="pb-3">
                 <CardTitle className="text-base text-blue-700 dark:text-blue-300 flex items-center">
                   <Info className="h-5 w-5 mr-2" />
-                  Profil Fotoğrafı İpuçları
+                  {t("profile.photoTipsTitle")}
                 </CardTitle>
                 <CardDescription className="text-blue-600 dark:text-blue-400">
-                  Normal bir fotoğraf yükle, arka planını otomatik olarak kaldırıp kartına yerleştiriyoruz.
+                  {t("profile.photoTipsDesc")}
                 </CardDescription>
               </CardHeader>
               <CardContent className="text-sm space-y-3">
                 <div>
-                  <strong className="block mb-1">1. Fotoğrafı seç</strong>
-                  <p className="text-muted-foreground">
-                    "Fotoğrafı Değiştir" ile telefonundan net, önden çekilmiş bir fotoğraf seç (JPG, PNG veya WEBP, en
-                    fazla 5MB).
-                  </p>
+                  <strong className="block mb-1">{t("profile.tip1Heading")}</strong>
+                  <p className="text-muted-foreground">{t("profile.tip1Text")}</p>
                 </div>
                 <div>
-                  <strong className="block mb-1">2. Arka plan otomatik kalkar</strong>
-                  <p className="text-muted-foreground">
-                    Yükleme sırasında arka plan tarayıcında otomatik olarak kaldırılır — ekstra bir uygulamaya gerek yok.
-                    İlk seferde kısa bir indirme olabilir.
-                  </p>
+                  <strong className="block mb-1">{t("profile.tip2Heading")}</strong>
+                  <p className="text-muted-foreground">{t("profile.tip2Text")}</p>
                 </div>
                 <div>
-                  <strong className="block mb-1">3. Kartını ayarla</strong>
-                  <p className="text-muted-foreground">
-                    "Kart" sekmesinden fotoğrafın konumunu (yakınlaştırma/kaydırma), istatistiklerini ve kart türünü
-                    düzenleyebilirsin.
-                  </p>
+                  <strong className="block mb-1">{t("profile.tip3Heading")}</strong>
+                  <p className="text-muted-foreground">{t("profile.tip3Text")}</p>
                 </div>
               </CardContent>
             </Card>
@@ -327,20 +325,20 @@ export default function PlayerProfilePage() {
             <h1 className="text-3xl font-bold">{user.name}</h1>
             <div className="flex items-center text-muted-foreground mt-1 flex-wrap gap-2">
               <Badge variant="outline" className="mr-2">
-                {user.position || "Pozisyon belirtilmemiş"}
+                {user.position || t("profile.noPosition")}
               </Badge>
               {user.confirmed ? (
                 <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">
-                  <CheckCircle2 className="mr-1 h-3 w-3" /> Onaylanmış
+                  <CheckCircle2 className="mr-1 h-3 w-3" /> {t("profile.confirmed")}
                 </Badge>
               ) : (
                 <Badge variant="outline" className="bg-yellow-50 text-yellow-700 border-yellow-200">
-                  Onaylanmamış
+                  {t("profile.unconfirmed")}
                 </Badge>
               )}
               {unpaidMatchesCount > 0 && (
                 <Badge variant="outline" className="bg-red-50 text-red-700 border-red-200">
-                  {unpaidMatchesCount} Ödenmemiş Maç
+                  {t("profile.unpaidMatches", { count: unpaidMatchesCount })}
                 </Badge>
               )}
             </div>
@@ -350,37 +348,35 @@ export default function PlayerProfilePage() {
             <TabsList className="grid grid-cols-3 sm:grid-cols-5 mb-6">
               <TabsTrigger value="card">
                 <CreditCard className="h-4 w-4 mr-1 sm:mr-2" />
-                <span>Kart</span>
+                <span>{t("profile.tabCard")}</span>
               </TabsTrigger>
               <TabsTrigger value="stats">
                 <BarChart3 className="h-4 w-4 mr-1 sm:mr-2" />
-                <span className="hidden sm:inline">İstatistikler</span>
-                <span className="sm:hidden">İst.</span>
+                <span className="hidden sm:inline">{t("profile.tabStatsFull")}</span>
+                <span className="sm:hidden">{t("profile.tabStatsShort")}</span>
               </TabsTrigger>
               <TabsTrigger value="history">
                 <History className="h-4 w-4 mr-1 sm:mr-2" />
-                <span className="hidden sm:inline">Maç Geçmişi</span>
-                <span className="sm:hidden">Geçmiş</span>
+                <span className="hidden sm:inline">{t("profile.tabHistoryFull")}</span>
+                <span className="sm:hidden">{t("profile.tabHistoryShort")}</span>
               </TabsTrigger>
               <TabsTrigger value="teammates">
                 <UsersRound className="h-4 w-4 mr-1 sm:mr-2" />
-                <span className="hidden sm:inline">Oyuncu İlişkileri</span>
-                <span className="sm:hidden">İlişkiler</span>
+                <span className="hidden sm:inline">{t("profile.tabRelationsFull")}</span>
+                <span className="sm:hidden">{t("profile.tabRelationsShort")}</span>
               </TabsTrigger>
               <TabsTrigger value="profile">
                 <User className="h-4 w-4 mr-1 sm:mr-2" />
-                <span className="hidden sm:inline">Profil</span>
-                <span className="sm:hidden">Profil</span>
+                <span className="hidden sm:inline">{t("profile.tabProfile")}</span>
+                <span className="sm:hidden">{t("profile.tabProfile")}</span>
               </TabsTrigger>
             </TabsList>
 
             <TabsContent value="card">
               <Card>
                 <CardHeader>
-                  <CardTitle>Kartını Düzenle</CardTitle>
-                  <CardDescription>
-                    Genel puanını, pozisyonunu, istatistiklerini, kart türünü ve ülkeni özelleştir.
-                  </CardDescription>
+                  <CardTitle>{t("profile.editCardTitle")}</CardTitle>
+                  <CardDescription>{t("profile.editCardDesc")}</CardDescription>
                 </CardHeader>
                 <CardContent>
                   <FifaCardEditor
@@ -394,43 +390,43 @@ export default function PlayerProfilePage() {
             <TabsContent value="stats">
               <Card>
                 <CardHeader>
-                  <CardTitle>Oyuncu İstatistikleri</CardTitle>
-                  <CardDescription>Toplam maç ve galibiyet istatistikleri</CardDescription>
+                  <CardTitle>{t("profile.statsTitle")}</CardTitle>
+                  <CardDescription>{t("profile.statsDesc")}</CardDescription>
                 </CardHeader>
                 <CardContent>
                   {playerStats ? (
                     <div className="space-y-6">
                       <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
                         <div className="bg-gray-50 dark:bg-gray-800 p-4 rounded-lg text-center">
-                          <div className="text-muted-foreground text-sm mb-1">Toplam Maç</div>
+                          <div className="text-muted-foreground text-sm mb-1">{t("stats.totalMatches")}</div>
                           <div className="text-3xl font-bold">{playerStats.totalMatches}</div>
                         </div>
                         <div className="bg-green-50 dark:bg-green-900/20 p-4 rounded-lg text-center">
-                          <div className="text-green-600 dark:text-green-400 text-sm mb-1">Galibiyet</div>
+                          <div className="text-green-600 dark:text-green-400 text-sm mb-1">{t("stats.wins")}</div>
                           <div className="text-3xl font-bold text-green-600 dark:text-green-400">
                             {playerStats.wins}
                           </div>
                         </div>
                         <div className="bg-yellow-50 dark:bg-yellow-900/20 p-4 rounded-lg text-center">
-                          <div className="text-yellow-600 dark:text-yellow-400 text-sm mb-1">Beraberlik</div>
+                          <div className="text-yellow-600 dark:text-yellow-400 text-sm mb-1">{t("stats.draws")}</div>
                           <div className="text-3xl font-bold text-yellow-600 dark:text-yellow-400">
                             {playerStats.draws}
                           </div>
                         </div>
                         <div className="bg-red-50 dark:bg-red-900/20 p-4 rounded-lg text-center">
-                          <div className="text-red-600 dark:text-red-400 text-sm mb-1">Mağlubiyet</div>
+                          <div className="text-red-600 dark:text-red-400 text-sm mb-1">{t("stats.losses")}</div>
                           <div className="text-3xl font-bold text-red-600 dark:text-red-400">{playerStats.losses}</div>
                         </div>
                         <div className="bg-yellow-50 dark:bg-yellow-900/20 p-4 rounded-lg text-center">
                           <div className="text-yellow-600 dark:text-yellow-400 text-sm mb-1 flex items-center justify-center gap-1">
-                            <Star className="h-3.5 w-3.5 fill-yellow-500 text-yellow-500" /> MVP Ödülleri
+                            <Star className="h-3.5 w-3.5 fill-yellow-500 text-yellow-500" /> {t("stats.mvpAwards")}
                           </div>
                           <div className="text-3xl font-bold text-yellow-600 dark:text-yellow-400">{mvpCount}</div>
                         </div>
                       </div>
                       <div className="mt-6">
                         <div className="flex justify-between mb-2">
-                          <span className="text-sm font-medium">Galibiyet Oranı</span>
+                          <span className="text-sm font-medium">{t("stats.winRate")}</span>
                           <span className="text-sm font-medium flex gap-2">
                             <span className="text-green-600">{playerStats.winRate}%</span>
                             <span className="text-yellow-500">
@@ -445,63 +441,63 @@ export default function PlayerProfilePage() {
                           <div
                             className="bg-green-600 h-2.5"
                             style={{ width: `${playerStats.winRate}%` }}
-                            title={`Galip: ${playerStats.wins}`}
+                            title={`${t("stats.winsColon")} ${playerStats.wins}`}
                           ></div>
                           <div
                             className="bg-yellow-500 h-2.5"
                             style={{ width: `${(playerStats.draws / playerStats.totalMatches) * 100}%` }}
-                            title={`Beraberlik: ${playerStats.draws}`}
+                            title={`${t("stats.drawsColon")} ${playerStats.draws}`}
                           ></div>
                           <div
                             className="bg-red-600 h-2.5"
                             style={{ width: `${(playerStats.losses / playerStats.totalMatches) * 100}%` }}
-                            title={`Mağlubiyet: ${playerStats.losses}`}
+                            title={`${t("stats.lossesColon")} ${playerStats.losses}`}
                           ></div>
                         </div>
                       </div>
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-6">
                         <div className="border rounded-lg p-4">
-                          <div className="text-sm font-medium text-blue-600 mb-2">Takım A</div>
+                          <div className="text-sm font-medium text-blue-600 mb-2">{t("team.a")}</div>
                           <div className="flex justify-between text-sm mb-1">
-                            <span className="text-muted-foreground">Maç:</span>
+                            <span className="text-muted-foreground">{t("stats.matchesColon")}</span>
                             <span>{playerStats.teamAMatches}</span>
                           </div>
                           <div className="flex justify-between text-sm mb-1">
-                            <span className="text-muted-foreground">Galibiyet:</span>
+                            <span className="text-muted-foreground">{t("stats.winsColon")}</span>
                             <span>{playerStats.teamAWins}</span>
                           </div>
                           <div className="flex justify-between text-sm mb-1">
-                            <span className="text-muted-foreground">Beraberlik:</span>
+                            <span className="text-muted-foreground">{t("stats.drawsColon")}</span>
                             <span>{playerStats.teamADraws}</span>
                           </div>
                           <div className="flex justify-between text-sm">
-                            <span className="text-muted-foreground">Oran:</span>
+                            <span className="text-muted-foreground">{t("stats.ratio")}</span>
                             <span>{playerStats.teamAWinRate}%</span>
                           </div>
                         </div>
                         <div className="border rounded-lg p-4">
-                          <div className="text-sm font-medium text-red-600 mb-2">Takım B</div>
+                          <div className="text-sm font-medium text-red-600 mb-2">{t("team.b")}</div>
                           <div className="flex justify-between text-sm mb-1">
-                            <span className="text-muted-foreground">Maç:</span>
+                            <span className="text-muted-foreground">{t("stats.matchesColon")}</span>
                             <span>{playerStats.teamBMatches}</span>
                           </div>
                           <div className="flex justify-between text-sm mb-1">
-                            <span className="text-muted-foreground">Galibiyet:</span>
+                            <span className="text-muted-foreground">{t("stats.winsColon")}</span>
                             <span>{playerStats.teamBWins}</span>
                           </div>
                           <div className="flex justify-between text-sm mb-1">
-                            <span className="text-muted-foreground">Beraberlik:</span>
+                            <span className="text-muted-foreground">{t("stats.drawsColon")}</span>
                             <span>{playerStats.teamBDraws}</span>
                           </div>
                           <div className="flex justify-between text-sm">
-                            <span className="text-muted-foreground">Oran:</span>
+                            <span className="text-muted-foreground">{t("stats.ratio")}</span>
                             <span>{playerStats.teamBWinRate}%</span>
                           </div>
                         </div>
                       </div>
                     </div>
                   ) : (
-                    <div className="text-center py-8 text-muted-foreground">Henüz istatistik bulunmamaktadır.</div>
+                    <div className="text-center py-8 text-muted-foreground">{t("stats.noStats")}</div>
                   )}
                 </CardContent>
               </Card>
@@ -510,8 +506,8 @@ export default function PlayerProfilePage() {
             <TabsContent value="history">
               <Card>
                 <CardHeader>
-                  <CardTitle>Maç Geçmişi</CardTitle>
-                  <CardDescription>Oyuncunun katıldığı maçlar ve sonuçları</CardDescription>
+                  <CardTitle>{t("profile.historyTitle")}</CardTitle>
+                  <CardDescription>{t("profile.historyDesc")}</CardDescription>
                 </CardHeader>
                 <CardContent>
                   {matchHistory.length > 0 ? (
@@ -527,7 +523,7 @@ export default function PlayerProfilePage() {
                             </div>
                             <Link href={`/match/${match.matchId}`} passHref>
                               <Button variant="ghost" size="sm">
-                                Detaylar
+                                {t("common.details")}
                               </Button>
                             </Link>
                           </div>
@@ -541,30 +537,30 @@ export default function PlayerProfilePage() {
                                     : "bg-red-50 text-red-700 border-red-200"
                                 }
                               >
-                                Takım {match.team}
+                                {match.team === "A" ? t("team.a") : t("team.b")}
                               </Badge>
                               {match.result === "win" ? (
                                 <Badge className="bg-green-500">
-                                  <Trophy className="mr-1 h-3 w-3" /> Galibiyet
+                                  <Trophy className="mr-1 h-3 w-3" /> {t("match.resultWin")}
                                 </Badge>
                               ) : match.result === "draw" ? (
                                 <Badge className="bg-yellow-500">
-                                  <Minus className="mr-1 h-3 w-3" /> Beraberlik
+                                  <Minus className="mr-1 h-3 w-3" /> {t("match.resultDraw")}
                                 </Badge>
                               ) : match.result === "loss" ? (
                                 <Badge variant="destructive">
-                                  <XCircle className="mr-1 h-3 w-3" /> Mağlubiyet
+                                  <XCircle className="mr-1 h-3 w-3" /> {t("match.resultLoss")}
                                 </Badge>
                               ) : (
-                                <Badge variant="outline">Sonuçlanmadı</Badge>
+                                <Badge variant="outline">{t("match.resultUnknown")}</Badge>
                               )}
                               {match.hasPaid ? (
                                 <Badge className="bg-green-600">
-                                  <CheckCircle2 className="mr-1 h-3 w-3" /> Ödedi
+                                  <CheckCircle2 className="mr-1 h-3 w-3" /> {t("payment.paid")}
                                 </Badge>
                               ) : (
                                 <Badge variant="destructive">
-                                  <XCircle className="mr-1 h-3 w-3" /> Ödemedi
+                                  <XCircle className="mr-1 h-3 w-3" /> {t("payment.unpaid")}
                                 </Badge>
                               )}
                             </div>
@@ -574,7 +570,7 @@ export default function PlayerProfilePage() {
                       ))}
                     </div>
                   ) : (
-                    <div className="text-center py-8 text-muted-foreground">Henüz maç kaydı bulunmamaktadır.</div>
+                    <div className="text-center py-8 text-muted-foreground">{t("profile.noMatchHistory")}</div>
                   )}
                 </CardContent>
               </Card>
@@ -583,8 +579,8 @@ export default function PlayerProfilePage() {
             <TabsContent value="teammates">
               <Card>
                 <CardHeader>
-                  <CardTitle>Oyuncu İlişkileri</CardTitle>
-                  <CardDescription>En çok birlikte ve karşılıklı oynadığı 5 oyuncu</CardDescription>
+                  <CardTitle>{t("profile.teammatesTitle")}</CardTitle>
+                  <CardDescription>{t("profile.teammatesDesc")}</CardDescription>
                 </CardHeader>
                 <CardContent>
                   {teammates.length > 0 ? (
@@ -597,17 +593,19 @@ export default function PlayerProfilePage() {
                             </Link>
                             <div className="flex space-x-2">
                               <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">
-                                <Users className="mr-1 h-3 w-3" /> {teammate.matchesPlayedTogether} Birlikte
+                                <Users className="mr-1 h-3 w-3" />{" "}
+                                {t("teammates.playedTogether", { count: teammate.matchesPlayedTogether })}
                               </Badge>
                               <Badge variant="outline" className="bg-red-50 text-red-700 border-red-200">
-                                <Swords className="mr-1 h-3 w-3" /> {teammate.matchesPlayedAgainst} Karşılıklı
+                                <Swords className="mr-1 h-3 w-3" />{" "}
+                                {t("teammates.playedAgainst", { count: teammate.matchesPlayedAgainst })}
                               </Badge>
                             </div>
                           </div>
                           {teammate.matchesPlayedTogether > 0 && (
                             <div className="mt-3 pt-3 border-t border-dashed">
                               <div className="flex justify-between mb-1">
-                                <span className="text-sm text-muted-foreground">Birlikte Galibiyet Oranı</span>
+                                <span className="text-sm text-muted-foreground">{t("teammates.winRateTogether")}</span>
                                 <span className="text-sm font-medium">{teammate.winRateTogether}%</span>
                               </div>
                               <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2">
@@ -617,15 +615,15 @@ export default function PlayerProfilePage() {
                                 ></div>
                               </div>
                               <div className="flex justify-between mt-2 text-xs text-muted-foreground">
-                                <span>{teammate.winsTogether} Birlikte G</span>
-                                <span>{teammate.lossesTogether} Birlikte M</span>
+                                <span>{t("teammates.winsTogether", { count: teammate.winsTogether })}</span>
+                                <span>{t("teammates.lossesTogether", { count: teammate.lossesTogether })}</span>
                               </div>
                             </div>
                           )}
                           {teammate.matchesPlayedAgainst > 0 && (
                             <div className="mt-3 pt-3 border-t border-dashed">
                               <div className="flex justify-between mb-1">
-                                <span className="text-sm text-muted-foreground">Karşılıklı Galibiyet Oranı</span>
+                                <span className="text-sm text-muted-foreground">{t("teammates.winRateAgainst")}</span>
                                 <span className="text-sm font-medium">{teammate.winRateAgainst}%</span>
                               </div>
                               <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2">
@@ -635,8 +633,8 @@ export default function PlayerProfilePage() {
                                 ></div>
                               </div>
                               <div className="flex justify-between mt-2 text-xs text-muted-foreground">
-                                <span>{teammate.winsAgainst} Karşılıklı G</span>
-                                <span>{teammate.lossesAgainst} Karşılıklı M</span>
+                                <span>{t("teammates.winsAgainst", { count: teammate.winsAgainst })}</span>
+                                <span>{t("teammates.lossesAgainst", { count: teammate.lossesAgainst })}</span>
                               </div>
                             </div>
                           )}
@@ -644,7 +642,7 @@ export default function PlayerProfilePage() {
                       ))}
                     </div>
                   ) : (
-                    <div className="text-center py-8 text-muted-foreground">Henüz yeterli veri bulunmamaktadır.</div>
+                    <div className="text-center py-8 text-muted-foreground">{t("profile.noTeammateData")}</div>
                   )}
                 </CardContent>
               </Card>
@@ -653,53 +651,54 @@ export default function PlayerProfilePage() {
             <TabsContent value="profile">
               <Card>
                 <CardHeader>
-                  <CardTitle>İletişim Bilgileri</CardTitle>
-                  <CardDescription>Kişisel bilgilerinizi güncelleyin</CardDescription>
+                  <CardTitle>{t("profile.contactTitle")}</CardTitle>
+                  <CardDescription>{t("profile.contactDesc")}</CardDescription>
                 </CardHeader>
                 <CardContent>
-                  <form className="space-y-4">
-                    <div className="space-y-2">
-                      <Label htmlFor="phone">Telefon Numarası</Label>
-                      <div className="flex items-center">
-                        <Phone className="h-4 w-4 text-muted-foreground mr-2" />
-                        <Input
-                          id="phone"
-                          value={formatPhoneForDisplay(phone)}
-                          onChange={(e) => setPhone(e.target.value)}
-                          placeholder="5XX XXX XX XX"
-                        />
-                      </div>
+                  <div className="space-y-4">
+                    {/* Privacy note — numbers are never displayed anywhere on the site */}
+                    <div className="flex items-start gap-2 rounded-md border border-blue-200 bg-blue-50 p-3 text-sm text-blue-700 dark:border-blue-800 dark:bg-blue-950/40 dark:text-blue-300">
+                      <Lock className="mt-0.5 h-4 w-4 shrink-0" />
+                      <span>{t("contact.privacyNote")}</span>
                     </div>
+
+                    {maskPhone(user.phone) && (
+                      <p className="text-sm text-muted-foreground">
+                        {t("profile.numberOnFile", { masked: maskPhone(user.phone) as string })}
+                      </p>
+                    )}
+
                     <div className="space-y-2">
-                      <Label htmlFor="email">E-posta Adresi</Label>
-                      <div className="flex items-center">
-                        <Mail className="h-4 w-4 text-muted-foreground mr-2" />
-                        <Input
-                          id="email"
-                          type="email"
-                          value={email}
-                          onChange={(e) => setEmail(e.target.value)}
-                          placeholder="ornek@email.com"
-                        />
-                      </div>
+                      <Label htmlFor="phone">{t("common.phoneLabel")}</Label>
+                      <CountryPhoneInput
+                        id="phone"
+                        dial={dial}
+                        national={national}
+                        onDialChange={setDial}
+                        onNationalChange={setNational}
+                        placeholder={t("common.phonePlaceholder")}
+                        disabled={updatingContact}
+                      />
+                      <p className="text-xs text-muted-foreground">{t("profile.phoneEditHint")}</p>
                     </div>
+
                     <Button
                       type="button"
-                      onClick={handleUpdateContact}
-                      disabled={updatingContact}
-                      className="w-full mt-4"
+                      onClick={handleSavePhone}
+                      disabled={updatingContact || !national.trim()}
+                      className="w-full mt-2"
                     >
                       {updatingContact ? (
                         <>
-                          <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Güncelleniyor...
+                          <Loader2 className="mr-2 h-4 w-4 animate-spin" /> {t("common.updating")}
                         </>
                       ) : (
                         <>
-                          <Save className="mr-2 h-4 w-4" /> Bilgileri Güncelle
+                          <Save className="mr-2 h-4 w-4" /> {t("contact.saveButton")}
                         </>
                       )}
                     </Button>
-                  </form>
+                  </div>
                 </CardContent>
               </Card>
             </TabsContent>

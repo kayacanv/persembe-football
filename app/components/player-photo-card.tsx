@@ -1,5 +1,8 @@
+"use client"
+
 import Image from "next/image"
 import { ImageIcon } from "lucide-react" // Using ImageIcon for placeholder
+import { useTranslation } from "@/lib/i18n/useTranslation"
 
 interface PlayerPhotoCardProps {
   name: string
@@ -10,6 +13,7 @@ interface PlayerPhotoCardProps {
 const CARD_ASPECT_RATIO = 560 / 782
 
 export default function PlayerPhotoCard({ name, photoUrl }: PlayerPhotoCardProps) {
+  const { t } = useTranslation()
   return (
     <div className="w-full max-w-[280px] mx-auto rounded-lg overflow-hidden ">
       {/* This div will have the background color that shows through transparent PNG parts */}
@@ -28,7 +32,7 @@ export default function PlayerPhotoCard({ name, photoUrl }: PlayerPhotoCardProps
           // Simple placeholder if no photo is available
           <div className="w-full h-full flex flex-col items-center justify-center text-muted-foreground bg-muted/50">
             <ImageIcon className="w-16 h-16 opacity-50" />
-            <p className="mt-2 text-sm">Fotoğraf Yok</p>
+            <p className="mt-2 text-sm">{t("common.noPhoto")}</p>
           </div>
         )}
       </div>

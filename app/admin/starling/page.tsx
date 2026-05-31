@@ -21,8 +21,11 @@ import {
   type UnmatchedPayment,
   type UnpaidPlayerOption,
 } from "@/app/actions/starling-actions"
+import { useTranslation } from "@/lib/i18n/useTranslation"
+import { formatFullDate } from "@/lib/i18n/format"
 
 export default function StarlingReconcilePage() {
+  const { t, locale } = useTranslation()
   const searchParams = useSearchParams()
   const isAdmin = searchParams.get("admin") === "true"
 
@@ -47,7 +50,7 @@ export default function StarlingReconcilePage() {
   if (!isAdmin) {
     return (
       <div className="p-6 text-center text-muted-foreground">
-        Bu sayfa yalnızca yöneticiler içindir.
+        {t("admin.adminOnly")}
       </div>
     )
   }
@@ -55,17 +58,17 @@ export default function StarlingReconcilePage() {
   const handleLink = async (feedItemUid: string) => {
     const matchPlayerId = selected[feedItemUid]
     if (!matchPlayerId) {
-      toast({ title: "Oyuncu seçin", description: "Eşleştirmek için bir oyuncu seçin." })
+      toast({ title: t("admin.selectPlayerTitle"), description: t("admin.selectPlayerDesc") })
       return
     }
     setLinking(feedItemUid)
     const { success, error } = await linkBankPayment(feedItemUid, matchPlayerId)
     setLinking(null)
     if (success) {
-      toast({ title: "Eşleştirildi", description: "Ödeme oyuncuya bağlandı." })
+      toast({ title: t("admin.linked"), description: t("admin.linkSuccess") })
       await load()
     } else {
-      toast({ title: "Hata", description: error || "Eşleştirme başarısız.", variant: "destructive" })
+      toast({ title: t("common.error"), description: error || t("admin.linkFailed"), variant: "destructive" })
     }
   }
 
@@ -74,12 +77,12 @@ export default function StarlingReconcilePage() {
       <Toaster />
       <div className="flex items-center gap-2">
         <Landmark className="h-5 w-5" />
-        <h1 className="text-lg font-semibold">Starling — eşleşmeyen ödemeler</h1>
+        <h1 className="text-lg font-semibold">{t("admin.starlingUnmatched")}</h1>
       </div>
 
       <Button variant="outline" size="sm" onClick={load} disabled={loading}>
         {loading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-        Yenile
+        {t("common.refresh")}
       </Button>
 
       {loading ? (
@@ -88,7 +91,7 @@ export default function StarlingReconcilePage() {
         </div>
       ) : payments.length === 0 ? (
         <p className="text-sm text-muted-foreground py-6 text-center">
-          Eşleşmeyen ödeme yok. Her şey otomatik eşleşmiş. 🎉
+          {t("admin.noUnmatchedPayments")}
         </p>
       ) : (
         payments.map((p) => (
@@ -99,18 +102,18 @@ export default function StarlingReconcilePage() {
                   £{(p.amount_minor / 100).toFixed(2)}
                 </span>
                 <span className="text-xs text-muted-foreground font-normal">
-                  {new Date(p.transaction_time).toLocaleDateString("tr-TR")}
+                  {formatFullDate(p.transaction_time, locale)}
                 </span>
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-3">
               <div className="text-sm">
                 <p>
-                  <span className="text-muted-foreground">Gönderen:</span>{" "}
+                  <span className="text-muted-foreground">{t("payment.sender")}</span>{" "}
                   {p.counterparty_name || "—"}
                 </p>
                 <p>
-                  <span className="text-muted-foreground">Açıklama:</span>{" "}
+                  <span className="text-muted-foreground">{t("payment.description")}</span>{" "}
                   <span className="font-mono">{p.reference || "—"}</span>
                 </p>
               </div>
@@ -120,7 +123,7 @@ export default function StarlingReconcilePage() {
                   onValueChange={(v) => setSelected((s) => ({ ...s, [p.feed_item_uid]: v }))}
                 >
                   <SelectTrigger className="flex-1">
-                    <SelectValue placeholder="Oyuncu seç" />
+                    <SelectValue placeholder={t("admin.selectPlayer")} />
                   </SelectTrigger>
                   <SelectContent>
                     {players.map((pl) => (
@@ -138,7 +141,7 @@ export default function StarlingReconcilePage() {
                   {linking === p.feed_item_uid ? (
                     <Loader2 className="h-4 w-4 animate-spin" />
                   ) : (
-                    "Bağla"
+                    t("admin.linkPayment")
                   )}
                 </Button>
               </div>

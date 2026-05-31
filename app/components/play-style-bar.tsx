@@ -1,4 +1,7 @@
+"use client"
+
 import type { PlayerWithDetails } from "@/app/lib/types"
+import { useTranslation } from "@/lib/i18n/useTranslation"
 
 interface PlayStyleBarProps {
   players: PlayerWithDetails[]
@@ -6,6 +9,8 @@ interface PlayStyleBarProps {
 }
 
 export default function PlayStyleBar({ players, team }: PlayStyleBarProps) {
+  const { t } = useTranslation()
+
   // Calculate average position weight for the team
   const calculatePlayStyle = () => {
     if (players.length === 0) return 3 // Default neutral value
@@ -29,17 +34,17 @@ export default function PlayStyleBar({ players, team }: PlayStyleBarProps) {
   }
 
   const getStyleText = () => {
-    if (averageWeight <= 2) return "Çok Defansif"
-    if (averageWeight <= 2.5) return "Defansif"
-    if (averageWeight <= 3.5) return "Dengeli"
-    if (averageWeight <= 4) return "Hücumcu"
-    return "Çok Hücumcu"
+    if (averageWeight <= 2) return t("playstyle.veryDefensive")
+    if (averageWeight <= 2.5) return t("playstyle.defensive")
+    if (averageWeight <= 3.5) return t("playstyle.balanced")
+    if (averageWeight <= 4) return t("playstyle.attacking")
+    return t("playstyle.veryAttacking")
   }
 
   return (
     <div className="mb-4">
       <div className="flex justify-between items-center mb-2">
-        <span className="text-sm font-medium">Oyun Stili</span>
+        <span className="text-sm font-medium">{t("playstyle.label")}</span>
         <span className="text-xs text-muted-foreground">{getStyleText()}</span>
       </div>
 
@@ -60,8 +65,8 @@ export default function PlayStyleBar({ players, team }: PlayStyleBarProps) {
 
       {/* Labels */}
       <div className="flex justify-between text-xs text-muted-foreground mt-1">
-        <span>Defansif</span>
-        <span>Hücumcu</span>
+        <span>{t("playstyle.defensive")}</span>
+        <span>{t("playstyle.attacking")}</span>
       </div>
     </div>
   )

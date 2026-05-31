@@ -24,10 +24,12 @@ export async function getUserById(userId: string): Promise<User | null> {
   return data
 }
 
-// Update user contact information (and potentially other fields like photo_url)
+// Update editable user fields (phone, photo_url). NOTE: `users` has no `email`
+// column — writing one fails the whole update, which is why phone saves silently
+// broke before. Keep `email` out of this payload.
 export async function updateUserProfile(
   userId: string,
-  profileData: Partial<Pick<User, "phone" | "email" | "photo_url">>,
+  profileData: Partial<Pick<User, "phone" | "photo_url">>,
 ): Promise<boolean> {
   const supabase = getSupabaseBrowserClient()
   if (!supabase) {
@@ -87,10 +89,7 @@ export async function updateUserCard(userId: string, card: CardUpdate): Promise<
 }
 
 // Update user contact information (kept for backward compatibility if used elsewhere)
-export async function updateUserContact(
-  userId: string,
-  contactInfo: { phone?: string; email?: string },
-): Promise<boolean> {
+export async function updateUserContact(userId: string, contactInfo: { phone?: string }): Promise<boolean> {
   return updateUserProfile(userId, contactInfo)
 }
 

@@ -1,8 +1,11 @@
+"use client"
+
 import { CardContent } from "@/components/ui/card"
 import { CardTitle } from "@/components/ui/card"
 import { CardHeader } from "@/components/ui/card"
 import { Card } from "@/components/ui/card"
 import type { PlayerWithDetails } from "@/app/lib/types"
+import { useTranslation } from "@/lib/i18n/useTranslation"
 
 interface TeamPowerComparisonProps {
   teamAPlayers: PlayerWithDetails[]
@@ -10,6 +13,8 @@ interface TeamPowerComparisonProps {
 }
 
 export default function TeamPowerComparison({ teamAPlayers, teamBPlayers }: TeamPowerComparisonProps) {
+  const { t } = useTranslation()
+
   // Calculate total power for each team
   const calculateTeamPower = (players: PlayerWithDetails[]) => {
     if (players.length === 0) return 0
@@ -42,10 +47,10 @@ export default function TeamPowerComparison({ teamAPlayers, teamBPlayers }: Team
   const strongerTeam = teamAPower > teamBPower ? "A" : teamBPower > teamAPower ? "B" : "equal"
 
   const getBalanceText = () => {
-    if (powerDifference <= 2) return "Çok Dengeli"
-    if (powerDifference <= 5) return "Dengeli"
-    if (powerDifference <= 10) return "Az Dengesiz"
-    return "Dengesiz"
+    if (powerDifference <= 2) return t("team.veryBalanced")
+    if (powerDifference <= 5) return t("team.balanced")
+    if (powerDifference <= 10) return t("team.slightlyUnbalanced")
+    return t("team.unbalanced")
   }
 
   const getBalanceColor = () => {
@@ -62,8 +67,8 @@ export default function TeamPowerComparison({ teamAPlayers, teamBPlayers }: Team
           {/* Team labels and power values */}
           <div className="flex justify-between items-center mb-3">
             <div className="text-center">
-              <div className="text-sm font-medium text-blue-700 dark:text-blue-300">Takım A</div>
-              <div className="text-xs text-muted-foreground">({teamAPlayers.length} oyuncu)</div>
+              <div className="text-sm font-medium text-blue-700 dark:text-blue-300">{t("team.a")}</div>
+              <div className="text-xs text-muted-foreground">{t("team.playerCount", { count: teamAPlayers.length })}</div>
             </div>
 
             <div className="text-center">
@@ -71,8 +76,8 @@ export default function TeamPowerComparison({ teamAPlayers, teamBPlayers }: Team
             </div>
 
             <div className="text-center">
-              <div className="text-sm font-medium text-red-700 dark:text-red-300">Takım B</div>
-              <div className="text-xs text-muted-foreground">({teamBPlayers.length} oyuncu)</div>
+              <div className="text-sm font-medium text-red-700 dark:text-red-300">{t("team.b")}</div>
+              <div className="text-xs text-muted-foreground">{t("team.playerCount", { count: teamBPlayers.length })}</div>
             </div>
           </div>
 
@@ -100,9 +105,9 @@ export default function TeamPowerComparison({ teamAPlayers, teamBPlayers }: Team
 
             {/* Scale markers */}
             <div className="flex justify-between text-xs text-muted-foreground mt-1">
-              <span>Takım A Güçlü</span>
-              <span>Eşit</span>
-              <span>Takım B Güçlü</span>
+              <span>{t("team.aStronger")}</span>
+              <span>{t("team.equal")}</span>
+              <span>{t("team.bStronger")}</span>
             </div>
           </div>
         </CardContent>

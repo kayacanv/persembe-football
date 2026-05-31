@@ -8,7 +8,7 @@ import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Calendar, Clock, ArrowRight, Plus, Users, BarChart3, Loader2, AlertCircle, Star } from "lucide-react"
+import { Calendar, Clock, ArrowRight, Plus, Users, BarChart3, Loader2, AlertCircle, Star, Phone } from "lucide-react"
 import {
   getActiveMatch,
   getPastMatches,
@@ -31,8 +31,15 @@ import {
 } from "@/components/ui/dialog"
 import { Label } from "@/components/ui/label"
 import { Input } from "@/components/ui/input"
+import { useTranslation } from "@/lib/i18n/useTranslation"
+import { formatMatchDate } from "@/lib/i18n/format"
+import { LanguageSwitcher } from "@/app/components/language-switcher"
+import { PhoneRegistration } from "@/app/components/phone-registration"
+
+const TAB_VALUES = ["matches", "rankings", "contact"] as const
 
 export default function HomePage() {
+  const { t, locale } = useTranslation()
   const [activeMatch, setActiveMatch] = useState<Match | null>(null)
   const [pastMatches, setPastMatches] = useState<Match[]>([])
   const [playerRankings, setPlayerRankings] = useState<PlayerRankingStats[]>([])
@@ -49,33 +56,11 @@ export default function HomePage() {
   const searchParams = useSearchParams()
   const isAdmin = searchParams.get("admin") === "true"
 
-  // Function to format date in readable Turkish format
-  const formatReadableDate = (dateString: string) => {
-    try {
-      // Parse DD.MM.YYYY format
-      const [day, month, year] = dateString.split(".")
-      const date = new Date(Number.parseInt(year), Number.parseInt(month) - 1, Number.parseInt(day))
-
-      const months = [
-        "Ocak",
-        "Şubat",
-        "Mart",
-        "Nisan",
-        "Mayıs",
-        "Haziran",
-        "Temmuz",
-        "Ağustos",
-        "Eylül",
-        "Ekim",
-        "Kasım",
-        "Aralık",
-      ]
-
-      return `${Number.parseInt(day)} ${months[date.getMonth()]}`
-    } catch (error) {
-      return dateString // Fallback to original format if parsing fails
-    }
-  }
+  // Tab is controlled so it can be opened directly via URL, e.g. ?tab=contact
+  const tabParam = searchParams.get("tab")
+  const [activeTab, setActiveTab] = useState<string>(
+    TAB_VALUES.includes(tabParam as (typeof TAB_VALUES)[number]) ? (tabParam as string) : "matches",
+  )
 
   useEffect(() => {
     async function loadData() {
@@ -87,8 +72,8 @@ export default function HomePage() {
         if (!supabase) {
           console.error("Supabase client is not initialized")
           toast({
-            title: "Bağlantı Hatası",
-            description: "Veritabanı bağlantısı kurulamadı. Lütfen daha sonra tekrar deneyin.",
+            title: t("home.connectionError"),
+            description: t("home.dbConnectionFailed"),
             variant: "destructive",
           })
           setLoadingMatches(false)
@@ -124,8 +109,8 @@ export default function HomePage() {
       } catch (error) {
         console.error("Error loading data:", error)
         toast({
-          title: "Hata",
-          description: "Veri yüklenirken bir hata oluştu.",
+          title: t("common.error"),
+          description: t("home.dataLoadFailed"),
           variant: "destructive",
         })
       } finally {
@@ -135,7 +120,7 @@ export default function HomePage() {
     }
 
     loadData()
-  }, [])
+  }, [t])
 
   // Update the handleCreateMatch function
   const handleCreateMatch = async () => {
@@ -146,23 +131,23 @@ export default function HomePage() {
         setActiveMatch(newMatch)
         setCreateMatchDialogOpen(false)
         toast({
-          title: "Başarılı",
-          description: "Yeni maç oluşturuldu.",
+          title: t("common.success"),
+          description: t("home.matchCreated"),
         })
       } else {
         // createMatch returns null on failure — most likely the unique date
         // constraint (a match for that Thursday already exists).
         toast({
-          title: "Maç oluşturulamadı",
-          description: `${getNextThursday()} tarihli maç zaten mevcut olabilir.`,
+          title: t("home.matchCreateFailed"),
+          description: t("home.matchAlreadyExists", { date: getNextThursday() }),
           variant: "destructive",
         })
       }
     } catch (error) {
       console.error("Error creating match:", error)
       toast({
-        title: "Hata",
-        description: "Maç oluşturulurken bir hata oluştu.",
+        title: t("common.error"),
+        description: t("home.matchCreationError"),
         variant: "destructive",
       })
     } finally {
@@ -172,27 +157,39 @@ export default function HomePage() {
 
   return (
     <div className="container max-w-md mx-auto px-4 py-8">
-      <h1 className="text-2xl font-bold mb-6 text-center">Perşembe Halısaha</h1>
+      <div className="flex items-center justify-between mb-6">
+        <h1 className="text-2xl font-bold">Perşembe Halısaha</h1>
+        <LanguageSwitcher />
+      </div>
 
-      <Tabs defaultValue="matches" className="w-full">
-        <TabsList className="grid w-full grid-cols-2 mb-6">
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+        <TabsList className="grid w-full grid-cols-3 mb-6">
           <TabsTrigger value="matches">
-            <Calendar className="mr-2 h-4 w-4" /> Maçlar
+            <Calendar className="mr-1 h-4 w-4 sm:mr-2" />
+            <span className="hidden sm:inline">{t("home.tabMatches")}</span>
+            <span className="sm:hidden">{t("home.tabMatchesShort")}</span>
           </TabsTrigger>
           <TabsTrigger value="rankings">
-            <BarChart3 className="mr-2 h-4 w-4" /> Oyuncu Sıralaması
+            <BarChart3 className="mr-1 h-4 w-4 sm:mr-2" />
+            <span className="hidden sm:inline">{t("home.tabRankings")}</span>
+            <span className="sm:hidden">{t("home.tabRankingsShort")}</span>
+          </TabsTrigger>
+          <TabsTrigger value="contact">
+            <Phone className="mr-1 h-4 w-4 sm:mr-2" />
+            <span className="hidden sm:inline">{t("home.tabContact")}</span>
+            <span className="sm:hidden">{t("home.tabContactShort")}</span>
           </TabsTrigger>
         </TabsList>
 
         <TabsContent value="matches">
           {/* Active Match */}
           <div className="mb-8">
-            <h2 className="text-xl font-semibold mb-4">Aktif Maç</h2>
+            <h2 className="text-xl font-semibold mb-4">{t("home.activeMatch")}</h2>
             {loadingMatches ? (
               <Card className="mb-4">
                 <CardContent className="p-8 text-center">
                   <Loader2 className="h-6 w-6 animate-spin text-primary mx-auto mb-2" />
-                  <div>Yükleniyor...</div>
+                  <div>{t("common.loading")}</div>
                 </CardContent>
               </Card>
             ) : activeMatch ? (
@@ -200,13 +197,15 @@ export default function HomePage() {
                 {unpaidCounts[activeMatch.id] > 0 && (
                   <div className="absolute top-3 right-3 bg-red-500 text-white text-xs font-semibold px-2.5 py-1 rounded-full flex items-center gap-1 shadow-sm">
                     <AlertCircle className="h-3 w-3" />
-                    {unpaidCounts[activeMatch.id]} ödenmedi
+                    {t("home.unpaidCount", { count: unpaidCounts[activeMatch.id] })}
                   </div>
                 )}
                 <CardHeader className="pb-2">
-                  <CardTitle>{formatReadableDate(activeMatch.date)}</CardTitle>
+                  <CardTitle>{formatMatchDate(activeMatch.date, locale)}</CardTitle>
                   <CardDescription>
-                    {activeMatch.status === "registering" ? "Kayıt aşamasında" : "Takımlar hazırlanıyor"}
+                    {activeMatch.status === "registering"
+                      ? t("match.statusRegistering")
+                      : t("match.statusReady")}
                   </CardDescription>
                 </CardHeader>
                 <CardContent>
@@ -216,7 +215,7 @@ export default function HomePage() {
                   </div>
                   <Link href={`/match/${activeMatch.id}`} passHref>
                     <Button className="w-full">
-                      Maça Git
+                      {t("home.goToMatch")}
                       <ArrowRight className="ml-2 h-4 w-4" />
                     </Button>
                   </Link>
@@ -225,11 +224,11 @@ export default function HomePage() {
             ) : (
               <Card className="mb-4">
                 <CardContent className="p-6 text-center">
-                  <p className="mb-4 text-muted-foreground">Aktif maç bulunmamaktadır.</p>
+                  <p className="mb-4 text-muted-foreground">{t("home.noActiveMatch")}</p>
                   {isAdmin && (
                     <Button onClick={() => setCreateMatchDialogOpen(true)}>
                       <Plus className="mr-2 h-4 w-4" />
-                      Yeni Maç Oluştur
+                      {t("home.createMatch")}
                     </Button>
                   )}
                 </CardContent>
@@ -239,12 +238,12 @@ export default function HomePage() {
 
           {/* Match History */}
           <div>
-            <h2 className="text-xl font-semibold mb-4">Geçmiş Maçlar</h2>
+            <h2 className="text-xl font-semibold mb-4">{t("home.pastMatches")}</h2>
             {loadingMatches ? (
               <Card>
                 <CardContent className="p-8 text-center">
                   <Loader2 className="h-6 w-6 animate-spin text-primary mx-auto mb-2" />
-                  <div>Yükleniyor...</div>
+                  <div>{t("common.loading")}</div>
                 </CardContent>
               </Card>
             ) : pastMatches.length > 0 ? (
@@ -254,25 +253,25 @@ export default function HomePage() {
                     {unpaidCounts[match.id] > 0 && (
                       <div className="absolute top-3 right-3 bg-red-500 text-white text-xs font-semibold px-2.5 py-1 rounded-full flex items-center gap-1 shadow-sm">
                         <AlertCircle className="h-3 w-3" />
-                        {unpaidCounts[match.id]} ödenmedi
+                        {t("home.unpaidCount", { count: unpaidCounts[match.id] })}
                       </div>
                     )}
                     <CardHeader className="pb-2">
-                      <CardTitle>{formatReadableDate(match.date)}</CardTitle>
+                      <CardTitle>{formatMatchDate(match.date, locale)}</CardTitle>
                       <CardDescription>
-                        Skor: {match.score_a ?? 0} - {match.score_b ?? 0}
+                        {t("home.score", { a: match.score_a ?? 0, b: match.score_b ?? 0 })}
                       </CardDescription>
                       {mvpWinners[match.id] && (
                         <div className="mt-1 flex items-center gap-1 text-sm font-medium text-yellow-600">
                           <Star className="h-4 w-4 fill-yellow-500 text-yellow-500" />
-                          MVP: {mvpWinners[match.id].name}
+                          {t("home.mvpBadge", { name: mvpWinners[match.id].name })}
                         </div>
                       )}
                     </CardHeader>
                     <CardContent className="pt-4">
                       <Link href={`/match/${match.id}`} passHref>
                         <Button variant="outline" className="w-full bg-transparent">
-                          Detayları Gör
+                          {t("home.seeDetails")}
                           <ArrowRight className="ml-2 h-4 w-4" />
                         </Button>
                       </Link>
@@ -283,7 +282,7 @@ export default function HomePage() {
             ) : (
               <Card>
                 <CardContent className="py-4 text-center text-muted-foreground">
-                  Henüz tamamlanmış maç bulunmamaktadır.
+                  {t("home.noPastMatches")}
                 </CardContent>
               </Card>
             )}
@@ -293,14 +292,14 @@ export default function HomePage() {
         <TabsContent value="rankings">
           <Card>
             <CardHeader>
-              <CardTitle>Oyuncu Sıralaması</CardTitle>
-              <CardDescription>En az 2 maça katılmış oyuncuların galibiyet oranına göre sıralaması.</CardDescription>
+              <CardTitle>{t("home.rankingsTitle")}</CardTitle>
+              <CardDescription>{t("home.rankingsDescription")}</CardDescription>
             </CardHeader>
             <CardContent>
               {loadingRankings ? (
                 <div className="p-8 text-center">
                   <Loader2 className="h-6 w-6 animate-spin text-primary mx-auto mb-2" />
-                  <div>Sıralama yükleniyor...</div>
+                  <div>{t("home.rankingsLoading")}</div>
                 </div>
               ) : playerRankings.length > 0 ? (
                 <div className="space-y-4">
@@ -330,21 +329,21 @@ export default function HomePage() {
                                 <div
                                   className="bg-green-500 h-full"
                                   style={{ width: `${winRate}%` }}
-                                  title={`${player.wins} Galibiyet`}
+                                  title={t("stats.winsTooltip", { count: player.wins })}
                                 />
                               )}
                               {drawRate > 0 && (
                                 <div
                                   className="bg-yellow-500 h-full"
                                   style={{ width: `${drawRate}%` }}
-                                  title={`${player.draws} Beraberlik`}
+                                  title={t("stats.drawsTooltip", { count: player.draws })}
                                 />
                               )}
                               {lossRate > 0 && (
                                 <div
                                   className="bg-red-500 h-full"
                                   style={{ width: `${lossRate}%` }}
-                                  title={`${player.losses} Yenilgi`}
+                                  title={t("stats.lossesTooltip", { count: player.losses })}
                                 />
                               )}
                             </div>
@@ -355,9 +354,15 @@ export default function HomePage() {
                         </div>
                         <div className="text-right ml-2">
                           <div className="text-sm font-semibold text-primary">
-                            {player.wins}G - {player.draws}B - {player.losses}Y
+                            {t("home.recordFormat", {
+                              wins: player.wins,
+                              draws: player.draws,
+                              losses: player.losses,
+                            })}
                           </div>
-                          <div className="text-xs text-muted-foreground">{player.totalMatches} Maç</div>
+                          <div className="text-xs text-muted-foreground">
+                            {t("home.matchesCount", { count: player.totalMatches })}
+                          </div>
                         </div>
                       </div>
                     )
@@ -366,25 +371,29 @@ export default function HomePage() {
               ) : (
                 <div className="text-center py-6 text-muted-foreground">
                   <Users className="h-10 w-10 mx-auto mb-3 opacity-50" />
-                  Sıralama için yeterli veri bulunmamaktadır.
+                  {t("home.rankingsEmpty")}
                   <br />
-                  (En az 2 maç yapmış oyuncular listelenir.)
+                  {t("home.rankingsEmptyHint")}
                 </div>
               )}
             </CardContent>
           </Card>
+        </TabsContent>
+
+        <TabsContent value="contact">
+          <PhoneRegistration />
         </TabsContent>
       </Tabs>
       {/* Create Match Dialog */}
       <Dialog open={createMatchDialogOpen} onOpenChange={setCreateMatchDialogOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Yeni Maç Oluştur</DialogTitle>
-            <DialogDescription>{getNextThursday()} tarihli yeni bir Perşembe maçı oluşturun.</DialogDescription>
+            <DialogTitle>{t("home.createMatch")}</DialogTitle>
+            <DialogDescription>{t("home.createDialogDesc", { date: getNextThursday() })}</DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-4">
             <div className="space-y-2">
-              <Label htmlFor="match-price">Maç Ücreti (£)</Label>
+              <Label htmlFor="match-price">{t("home.priceLabel")}</Label>
               <Input
                 id="match-price"
                 type="number"
@@ -394,22 +403,20 @@ export default function HomePage() {
                 onChange={(e) => setMatchPrice(Number.parseFloat(e.target.value) || 0)}
                 placeholder="7.50"
               />
-              <p className="text-xs text-muted-foreground">
-                Varsayılan ücret £7.50'dir. İhtiyaç durumunda değiştirebilirsiniz.
-              </p>
+              <p className="text-xs text-muted-foreground">{t("home.priceHelp")}</p>
             </div>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setCreateMatchDialogOpen(false)} disabled={creatingMatch}>
-              İptal
+              {t("common.cancel")}
             </Button>
             <Button onClick={handleCreateMatch} disabled={creatingMatch || matchPrice <= 0}>
               {creatingMatch ? (
                 <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Oluşturuluyor...
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" /> {t("common.creating")}
                 </>
               ) : (
-                "Maç Oluştur"
+                t("home.createButton")
               )}
             </Button>
           </DialogFooter>

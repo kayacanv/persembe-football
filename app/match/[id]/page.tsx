@@ -61,12 +61,15 @@ import { createCheckoutSession, verifyPaymentStatus, confirmManualPayment } from
 import { updateMatchScore, updateMatchDate } from "@/app/actions/match-actions"
 import { getStripe } from "@/app/lib/stripe"
 import { paymentRef } from "@/app/lib/payment-ref"
+import { isPlaceholderPhone, samePhone } from "@/app/lib/phone"
 import type { User as UserType } from "@/app/lib/types"
 import { format, formatDistanceToNow } from "date-fns"
-import { tr } from "date-fns/locale"
+import { enUS, tr as trLocale } from "date-fns/locale"
 import { PlayerNameAutocomplete } from "@/app/components/player-name-autocomplete"
 import { Textarea } from "@/components/ui/textarea"
 import MvpVoting from "@/app/components/mvp-voting"
+import { useTranslation } from "@/lib/i18n/useTranslation"
+import { formatMatchDate, formatFullDate } from "@/lib/i18n/format"
 
 // Revolut (manual "mark as paid") is disabled for matches on/after 4 June 2026 —
 // from then on only Starling and Stripe are accepted. Older matches keep Revolut.
@@ -79,6 +82,8 @@ function isRevolutAllowed(match: { date: string } | null): boolean {
 }
 
 export default function MatchPage({ params }: { params: { id: string } }) {
+  const { t, locale } = useTranslation()
+  const dateFnsLocale = locale === "en" ? enUS : trLocale
   const router = useRouter()
   const searchParams = useSearchParams()
   const isAdmin = searchParams.get("admin") === "true"
@@ -101,34 +106,6 @@ export default function MatchPage({ params }: { params: { id: string } }) {
     notFound: string[]
   }
   const [bulkAddResult, setBulkAddResult] = useState<BulkAddResult | null>(null)
-
-  // Function to format date in readable Turkish format
-  const formatReadableDate = (dateString: string) => {
-    try {
-      // Parse DD.MM.YYYY format
-      const [day, month, year] = dateString.split(".")
-      const date = new Date(Number.parseInt(year), Number.parseInt(month) - 1, Number.parseInt(day))
-
-      const months = [
-        "Ocak",
-        "Şubat",
-        "Mart",
-        "Nisan",
-        "Mayıs",
-        "Haziran",
-        "Temmuz",
-        "Ağustos",
-        "Eylül",
-        "Ekim",
-        "Kasım",
-        "Aralık",
-      ]
-
-      return `${Number.parseInt(day)} ${months[date.getMonth()]}`
-    } catch (error) {
-      return dateString // Fallback to original format if parsing fails
-    }
-  }
 
   // Score state
   const [scoreA, setScoreA] = useState<number | undefined>(undefined)
@@ -184,8 +161,8 @@ export default function MatchPage({ params }: { params: { id: string } }) {
         const matchData = await getMatchById(matchId)
         if (!matchData) {
           toast({
-            title: "Hata",
-            description: "Maç bulunamadı.",
+            title: t("common.error"),
+            description: t("error.matchNotFoundDesc"),
             variant: "destructive",
           })
           return
@@ -207,8 +184,8 @@ export default function MatchPage({ params }: { params: { id: string } }) {
       } catch (error) {
         console.error("Error loading match data:", error)
         toast({
-          title: "Hata",
-          description: "Veri yüklenirken bir hata oluştu.",
+          title: t("common.error"),
+          description: t("profile.dataLoadError"),
           variant: "destructive",
         })
       } finally {
@@ -234,8 +211,8 @@ export default function MatchPage({ params }: { params: { id: string } }) {
 
         if (success) {
           toast({
-            title: "Başarılı",
-            description: "Ödemeniz başarıyla alındı.",
+            title: t("common.success"),
+            description: t("payment.received"),
           })
 
           // Refresh players list
@@ -244,8 +221,8 @@ export default function MatchPage({ params }: { params: { id: string } }) {
         }
       } else if (paymentCanceled === "true") {
         toast({
-          title: "İptal",
-          description: "Ödeme işlemi iptal edildi.",
+          title: t("common.cancel"),
+          description: t("payment.paymentCanceled"),
         })
       }
     }
@@ -269,8 +246,8 @@ export default function MatchPage({ params }: { params: { id: string } }) {
   const handleRegister = async () => {
     if (!name) {
       toast({
-        title: "Hata",
-        description: "İsim alanı gereklidir.",
+        title: t("common.error"),
+        description: t("match.nameRequired"),
         variant: "destructive",
       })
       return
@@ -279,8 +256,8 @@ export default function MatchPage({ params }: { params: { id: string } }) {
     // Check if the user is already registered for this match
     if (isUserRegistered(name)) {
       toast({
-        title: "Bilgi",
-        description: `${name} zaten bu maça kayıtlı.`,
+        title: t("common.info"),
+        description: t("match.alreadyRegistered", { name }),
       })
       return
     }
@@ -348,8 +325,8 @@ export default function MatchPage({ params }: { params: { id: string } }) {
     const isWaitlisted = updatedActiveCount > 18
 
     toast({
-      title: "Başarılı",
-      description: isWaitlisted ? "Bekleme listesine eklendiniz." : "Kaydınız alınmıştır.",
+      title: t("common.success"),
+      description: isWaitlisted ? t("match.addedToWaitlist") : t("match.registeredSuccess"),
     })
 
     // Refresh players list
@@ -368,8 +345,8 @@ export default function MatchPage({ params }: { params: { id: string } }) {
   // Handle registration error
   const handleRegistrationError = () => {
     toast({
-      title: "Hata",
-      description: "Kayıt yapılırken bir hata oluştu.",
+      title: t("common.error"),
+      description: t("match.registrationError"),
       variant: "destructive",
     })
   }
@@ -381,22 +358,28 @@ export default function MatchPage({ params }: { params: { id: string } }) {
 
       if (success) {
         setMatch({ ...match, status })
+        const statusLabel =
+          status === "registering"
+            ? t("match.statusRegisteringShort")
+            : status === "ready"
+              ? t("match.statusReadyShort")
+              : t("match.statusDoneShort")
         toast({
-          title: "Durum Güncellendi",
-          description: `Maç durumu "${status === "registering" ? "Kayıt" : status === "ready" ? "Hazır" : "Tamamlandı"}" olarak güncellendi.`,
+          title: t("match.statusUpdatedTitle"),
+          description: t("match.statusUpdated", { status: statusLabel }),
         })
       } else {
         toast({
-          title: "Hata",
-          description: "Durum güncellenirken bir hata oluştu.",
+          title: t("common.error"),
+          description: t("match.statusUpdateError"),
           variant: "destructive",
         })
       }
     } catch (error) {
       console.error("Error updating match status:", error)
       toast({
-        title: "Hata",
-        description: "Durum güncellenirken bir hata oluştu.",
+        title: t("common.error"),
+        description: t("match.statusUpdateError"),
         variant: "destructive",
       })
     }
@@ -406,8 +389,8 @@ export default function MatchPage({ params }: { params: { id: string } }) {
   const handleDateUpdate = async () => {
     if (!editedDate) {
       toast({
-        title: "Hata",
-        description: "Lutfen gecerli bir tarih secin.",
+        title: t("common.error"),
+        description: t("match.invalidDate"),
         variant: "destructive",
       })
       return
@@ -427,21 +410,21 @@ export default function MatchPage({ params }: { params: { id: string } }) {
         setMatch((prev) => (prev ? { ...prev, date: formattedDate } : null))
         setIsEditingDate(false)
         toast({
-          title: "Basarili",
-          description: "Mac tarihi guncellendi.",
+          title: t("common.success"),
+          description: t("match.dateUpdated"),
         })
       } else {
         toast({
-          title: "Hata",
-          description: result.error || "Tarih guncellenirken bir hata olustu.",
+          title: t("common.error"),
+          description: result.error || t("match.dateUpdateError"),
           variant: "destructive",
         })
       }
     } catch (error) {
       console.error("Error updating date:", error)
       toast({
-        title: "Hata",
-        description: "Tarih guncellenirken bir hata olustu.",
+        title: t("common.error"),
+        description: t("match.dateUpdateError"),
         variant: "destructive",
       })
     } finally {
@@ -453,8 +436,8 @@ export default function MatchPage({ params }: { params: { id: string } }) {
   const handleScoreUpdate = async () => {
     if (scoreA === undefined || scoreB === undefined) {
       toast({
-        title: "Hata",
-        description: "Lütfen geçerli skor değerleri girin.",
+        title: t("common.error"),
+        description: t("match.invalidScore"),
         variant: "destructive",
       })
       return
@@ -467,21 +450,21 @@ export default function MatchPage({ params }: { params: { id: string } }) {
       if (result.success) {
         setMatch((prev) => (prev ? { ...prev, score_a: scoreA, score_b: scoreB } : null))
         toast({
-          title: "Başarılı",
-          description: "Maç skoru güncellendi.",
+          title: t("common.success"),
+          description: t("match.scoreUpdated"),
         })
       } else {
         toast({
-          title: "Hata",
-          description: result.error || "Skor güncellenirken bir hata oluştu.",
+          title: t("common.error"),
+          description: result.error || t("match.scoreUpdateError"),
           variant: "destructive",
         })
       }
     } catch (error) {
       console.error("Error updating score:", error)
       toast({
-        title: "Hata",
-        description: "Skor güncellenirken bir hata oluştu.",
+        title: t("common.error"),
+        description: t("match.scoreUpdateError"),
         variant: "destructive",
       })
     } finally {
@@ -500,15 +483,13 @@ export default function MatchPage({ params }: { params: { id: string } }) {
   const handleDeletePlayer = async () => {
     if (!playerToDelete) return
 
-    // If the player doesn't have a phone number or has a generated one, skip verification
-    if (
-      playerToDelete.phone &&
-      !playerToDelete.phone.startsWith("no-phone-") &&
-      verificationPhone !== playerToDelete.phone
-    ) {
+    // If the player doesn't have a phone number or has a generated one, skip verification.
+    // Otherwise compare loosely (samePhone) so a member can type their number with or
+    // without the country code / formatting and still match the E.164-stored value.
+    if (!isPlaceholderPhone(playerToDelete.phone) && !samePhone(verificationPhone, playerToDelete.phone)) {
       toast({
-        title: "Hata",
-        description: "Telefon numarası eşleşmiyor.",
+        title: t("common.error"),
+        description: t("error.phoneMismatch"),
         variant: "destructive",
       })
       return
@@ -528,8 +509,8 @@ export default function MatchPage({ params }: { params: { id: string } }) {
         setActivePlayerCount(updatedActiveCount)
 
         toast({
-          title: "Başarılı",
-          description: "Oyuncu başarıyla silindi.",
+          title: t("common.success"),
+          description: t("match.playerDeleted"),
         })
 
         // Close dialog and reset state
@@ -538,15 +519,15 @@ export default function MatchPage({ params }: { params: { id: string } }) {
         setVerificationPhone("")
       } else {
         toast({
-          title: "Hata",
-          description: "Oyuncu silinirken bir hata oluştu.",
+          title: t("common.error"),
+          description: t("match.deletePlayerError"),
         })
       }
     } catch (error) {
       console.error("Error deleting player:", error)
       toast({
-        title: "Hata",
-        description: "Oyuncu silinirken bir hata oluştu.",
+        title: t("common.error"),
+        description: t("match.deletePlayerError"),
       })
     } finally {
       setDeleting(false)
@@ -579,8 +560,8 @@ export default function MatchPage({ params }: { params: { id: string } }) {
         setActivePlayerCount(updatedActiveCount)
 
         toast({
-          title: "Başarılı",
-          description: "Kaydınız iptal edildi.",
+          title: t("common.success"),
+          description: t("match.registrationCanceled"),
         })
 
         // Close dialog and reset state
@@ -588,15 +569,15 @@ export default function MatchPage({ params }: { params: { id: string } }) {
         setPlayerToCancel(null)
       } else {
         toast({
-          title: "Hata",
-          description: "Kayıt iptal edilirken bir hata oluştu.",
+          title: t("common.error"),
+          description: t("match.cancelError"),
         })
       }
     } catch (error) {
       console.error("Error canceling registration:", error)
       toast({
-        title: "Hata",
-        description: "Kayıt iptal edilirken bir hata oluştu.",
+        title: t("common.error"),
+        description: t("match.cancelError"),
         variant: "destructive",
       })
     } finally {
@@ -615,7 +596,7 @@ export default function MatchPage({ params }: { params: { id: string } }) {
       // Check if Stripe is properly initialized
       const stripe = await getStripe()
       if (!stripe) {
-        setStripeError("Ödeme sistemi başlatılamadı. Lütfen daha sonra tekrar deneyin.")
+        setStripeError(t("payment.stripeInitError"))
         setProcessingPayment(false)
         return
       }
@@ -627,17 +608,17 @@ export default function MatchPage({ params }: { params: { id: string } }) {
       } else if (sessionId) {
         const { error } = await stripe.redirectToCheckout({ sessionId })
         if (error) {
-          setStripeError(error.message || "Ödeme sayfasına yönlendirme başarısız oldu.")
+          setStripeError(error.message || t("payment.stripeRedirectError"))
         }
       } else {
-        setStripeError("Ödeme oturumu oluşturulamadı.")
+        setStripeError(t("payment.sessionFailed"))
       }
     } catch (error) {
       console.error("Error initiating payment:", error)
-      setStripeError("Ödeme başlatılırken bir hata oluştu.")
+      setStripeError(t("payment.initError"))
       toast({
-        title: "Hata",
-        description: "Ödeme başlatılırken bir hata oluştu.",
+        title: t("common.error"),
+        description: t("payment.initError"),
         variant: "destructive",
       })
     } finally {
@@ -659,8 +640,8 @@ export default function MatchPage({ params }: { params: { id: string } }) {
         setPlayers(updatedPlayers)
 
         toast({
-          title: "Başarılı",
-          description: "Ödeme durumunuz güncellendi.",
+          title: t("common.success"),
+          description: t("payment.statusUpdated"),
         })
 
         // Close dialog and reset state
@@ -669,15 +650,15 @@ export default function MatchPage({ params }: { params: { id: string } }) {
         setPaidWithRevolut(false)
       } else {
         toast({
-          title: "Hata",
-          description: "Ödeme durumu güncellenirken bir hata oluştu.",
+          title: t("common.error"),
+          description: t("payment.updateError"),
         })
       }
     } catch (error) {
       console.error("Error confirming manual payment:", error)
       toast({
-        title: "Hata",
-        description: "Ödeme durumu güncellenirken bir hata oluştu.",
+        title: t("common.error"),
+        description: t("payment.updateError"),
         variant: "destructive",
       })
     } finally {
@@ -695,13 +676,13 @@ export default function MatchPage({ params }: { params: { id: string } }) {
       setPlayers(updatedPlayers)
       const me = updatedPlayers.find((p) => p.match_player_id === playerToPay.match_player_id)
       if (me?.has_paid) {
-        toast({ title: "Ödeme alındı", description: "Banka havaleniz onaylandı." })
+        toast({ title: t("payment.received"), description: t("payment.confirmed") })
         setPaymentDialogOpen(false)
         setPlayerToPay(null)
       } else {
         toast({
-          title: "Ödeme bekleniyor",
-          description: "Havale henüz görünmüyor. Birkaç dakika sonra tekrar deneyin.",
+          title: t("payment.pending"),
+          description: t("payment.notYetReceived"),
         })
       }
     } catch (error) {
@@ -713,7 +694,7 @@ export default function MatchPage({ params }: { params: { id: string } }) {
 
   const copyToClipboard = (text: string, label: string) => {
     navigator.clipboard?.writeText(text).then(
-      () => toast({ title: "Kopyalandı", description: `${label} panoya kopyalandı.` }),
+      () => toast({ title: t("common.copied"), description: t("common.copySuccess", { label }) }),
       () => {},
     )
   }
@@ -746,8 +727,8 @@ export default function MatchPage({ params }: { params: { id: string } }) {
         setPlayers(updatedPlayers)
 
         toast({
-          title: "Başarılı",
-          description: "Kullanıcı onaylandı.",
+          title: t("common.success"),
+          description: t("match.userApproved"),
         })
 
         // Close dialog and reset state
@@ -755,15 +736,15 @@ export default function MatchPage({ params }: { params: { id: string } }) {
         setUserToConfirm(null)
       } else {
         toast({
-          title: "Hata",
-          description: "Kullanıcı onaylanırken bir hata oluştu.",
+          title: t("common.error"),
+          description: t("match.confirmUserError"),
         })
       }
     } catch (error) {
       console.error("Error confirming user:", error)
       toast({
-        title: "Hata",
-        description: "Kullanıcı onaylanırken bir hata oluştu.",
+        title: t("common.error"),
+        description: t("match.confirmUserError"),
         variant: "destructive",
       })
     } finally {
@@ -783,7 +764,7 @@ export default function MatchPage({ params }: { params: { id: string } }) {
   const formatDate = (dateString: string) => {
     try {
       const date = new Date(dateString)
-      return format(date, "dd.MM.yyyy HH:mm", { locale: tr })
+      return format(date, "dd.MM.yyyy HH:mm", { locale: dateFnsLocale })
     } catch (error) {
       return dateString
     }
@@ -793,7 +774,7 @@ export default function MatchPage({ params }: { params: { id: string } }) {
   const formatRelativeTime = (dateString: string) => {
     try {
       const date = new Date(dateString)
-      return formatDistanceToNow(date, { addSuffix: true, locale: tr })
+      return formatDistanceToNow(date, { addSuffix: true, locale: dateFnsLocale })
     } catch (error) {
       return dateString
     }
@@ -804,37 +785,28 @@ export default function MatchPage({ params }: { params: { id: string } }) {
     if (player.status === "waitlist") {
       return (
         <Badge variant="outline" className="ml-2 text-xs bg-yellow-50 text-yellow-700 border-yellow-200">
-          <Info className="mr-1 h-3 w-3" /> Bekleme Listesi #{player.waitlist_position}
+          <Info className="mr-1 h-3 w-3" /> {t("match.waitlistBadge", { position: player.waitlist_position ?? "" })}
         </Badge>
       )
     } else if (player.status === "canceled") {
       return (
         <Badge variant="outline" className="ml-2 text-xs bg-red-50 text-red-700 border-red-200">
-          <XCircle className="mr-1 h-3 w-3" /> İptal Edildi
+          <XCircle className="mr-1 h-3 w-3" /> {t("match.canceledBadge")}
         </Badge>
       )
     } else if (!player.confirmed) {
       return (
         <Badge variant="outline" className="ml-2 text-xs bg-yellow-50 text-yellow-700 border-yellow-200">
-          <Info className="mr-1 h-3 w-3" /> Onaylanmamış
+          <Info className="mr-1 h-3 w-3" /> {t("match.unconfirmedBadge")}
         </Badge>
       )
     }
     return null
   }
 
-  // Check if a phone number is auto-generated
-  const isAutoGeneratedPhone = (phone: string) => {
-    return phone && phone.startsWith("no-phone-")
-  }
-
-  // Format phone number for display
-  const formatPhoneForDisplay = (phone: string) => {
-    if (isAutoGeneratedPhone(phone)) {
-      return "Telefon yok"
-    }
-    return phone
-  }
+  // Whether a player has a real (non-placeholder) number on file. Used only to decide
+  // if delete-verification is required — the number itself is never displayed.
+  const isAutoGeneratedPhone = (phone: string) => isPlaceholderPhone(phone)
 
   // Generate dynamic Revolut payment link with player name and match price
   const getRevolutPaymentLink = () => {
@@ -863,15 +835,14 @@ export default function MatchPage({ params }: { params: { id: string } }) {
       // The user will need to manually confirm payment via the checkbox.
 
       toast({
-        title: "Revolut Ödeme",
-        description:
-          "Revolut ödeme sayfası açıldı. Ödemeyi tamamladıktan sonra 'Zaten ödeme yaptım' kutucuğunu işaretleyin.",
+        title: t("payment.revolutPayment"),
+        description: t("payment.revolutInstructions"),
       })
     } catch (error) {
       console.error("Error processing Revolut payment:", error)
       toast({
-        title: "Hata",
-        description: "Ödeme işlenirken bir hata oluştu.",
+        title: t("common.error"),
+        description: t("payment.initError"),
         variant: "destructive",
       })
     } finally {
@@ -883,8 +854,8 @@ export default function MatchPage({ params }: { params: { id: string } }) {
   const handleBulkAdd = async () => {
     if (!bulkAddText.trim()) {
       toast({
-        title: "Hata",
-        description: "Lütfen eklenecek oyuncuların listesini girin.",
+        title: t("common.error"),
+        description: t("match.bulkAddEmpty"),
         variant: "destructive",
       })
       return
@@ -954,8 +925,8 @@ export default function MatchPage({ params }: { params: { id: string } }) {
       })
 
       toast({
-        title: "Toplu Ekleme Tamamlandı",
-        description: "Sonuçlar aşağıda gösterilmiştir.",
+        title: t("match.bulkAddResultTitle"),
+        description: t("match.bulkAddResultsShown"),
       })
 
       // Refresh data
@@ -970,8 +941,8 @@ export default function MatchPage({ params }: { params: { id: string } }) {
     } catch (error) {
       console.error("Error during bulk add:", error)
       toast({
-        title: "Hata",
-        description: "Toplu ekleme sırasında bir hata oluştu.",
+        title: t("common.error"),
+        description: t("match.bulkAddError"),
         variant: "destructive",
       })
     } finally {
@@ -992,7 +963,7 @@ export default function MatchPage({ params }: { params: { id: string } }) {
     return (
       <div className="container max-w-md mx-auto px-4 py-8 flex flex-col items-center justify-center min-h-[50vh]">
         <Loader2 className="h-8 w-8 animate-spin text-primary mb-4" />
-        <p>Yükleniyor...</p>
+        <p>{t("common.loading")}</p>
       </div>
     )
   }
@@ -1000,12 +971,12 @@ export default function MatchPage({ params }: { params: { id: string } }) {
   if (!match) {
     return (
       <div className="container max-w-md mx-auto px-4 py-8 text-center">
-        <h1 className="text-2xl font-bold mb-6">Maç Bulunamadı</h1>
-        <p className="mb-4">Belirtilen ID ile bir maç bulunamadı.</p>
+        <h1 className="text-2xl font-bold mb-6">{t("error.matchNotFound")}</h1>
+        <p className="mb-4">{t("error.matchNotFoundDesc")}</p>
         <Link href="/" passHref>
           <Button>
             <ArrowLeft className="mr-2 h-4 w-4" />
-            Ana Sayfaya Dön
+            {t("common.backHome")}
           </Button>
         </Link>
       </div>
@@ -1052,7 +1023,7 @@ export default function MatchPage({ params }: { params: { id: string } }) {
                   {listType === "canceled" ? (
                     <>
                       <XCircle className="h-3 w-3 mr-1" />
-                      İptal: {formatDate(player.cancellation_date || "")}
+                      {t("match.cancellationDate", { date: formatDate(player.cancellation_date || "") })}
                     </>
                   ) : (
                     <>
@@ -1075,11 +1046,11 @@ export default function MatchPage({ params }: { params: { id: string } }) {
                 {match.status === "done" && listType === "team" ? (
                   player.has_paid ? (
                     <Badge className="bg-green-500">
-                      <Check className="mr-1 h-3 w-3" /> Ödedi
+                      <Check className="mr-1 h-3 w-3" /> {t("payment.paid")}
                     </Badge>
                   ) : (
                     <Badge variant="destructive">
-                      <X className="mr-1 h-3 w-3" /> Ödemedi
+                      <X className="mr-1 h-3 w-3" /> {t("payment.unpaid")}
                     </Badge>
                   )
                 ) : (
@@ -1126,7 +1097,7 @@ export default function MatchPage({ params }: { params: { id: string } }) {
                         openConfirmDialog(player)
                       }}
                     >
-                      <Check className="mr-1 h-3 w-3" /> Onayla
+                      <Check className="mr-1 h-3 w-3" /> {t("common.approve")}
                     </Button>
                   )}
                 {isAdmin && listType === "canceled" && (
@@ -1158,7 +1129,7 @@ export default function MatchPage({ params }: { params: { id: string } }) {
         <Link href="/" passHref>
           <Button variant="ghost" size="sm">
             <ArrowLeft className="mr-2 h-4 w-4" />
-            Geri
+            {t("common.back")}
           </Button>
         </Link>
 
@@ -1168,15 +1139,25 @@ export default function MatchPage({ params }: { params: { id: string } }) {
             <DropdownMenuTrigger asChild>
               <Button variant="outline" size="sm">
                 <span className="mr-2">
-                  {match.status === "registering" ? "Kayıt" : match.status === "ready" ? "Hazır" : "Tamamlandı"}
+                  {match.status === "registering"
+                    ? t("match.statusRegisteringShort")
+                    : match.status === "ready"
+                      ? t("match.statusReadyShort")
+                      : t("match.statusDoneShort")}
                 </span>
                 <ChevronDown className="h-4 w-4" />
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
-              <DropdownMenuItem onClick={() => handleStatusChange("registering")}>Kayıt Aşaması</DropdownMenuItem>
-              <DropdownMenuItem onClick={() => handleStatusChange("ready")}>Hazır</DropdownMenuItem>
-              <DropdownMenuItem onClick={() => handleStatusChange("done")}>Tamamlandı</DropdownMenuItem>
+              <DropdownMenuItem onClick={() => handleStatusChange("registering")}>
+                {t("match.statusRegisteringShort")}
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => handleStatusChange("ready")}>
+                {t("match.statusReadyShort")}
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => handleStatusChange("done")}>
+                {t("match.statusDoneShort")}
+              </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
         )}
@@ -1190,7 +1171,7 @@ export default function MatchPage({ params }: { params: { id: string } }) {
               <PopoverTrigger asChild>
                 <Button variant="outline" className="bg-transparent w-fit text-lg font-bold">
                   <Calendar className="mr-2 h-5 w-5" />
-                  {editedDate ? format(editedDate, "dd MMMM yyyy", { locale: tr }) : "Tarih secin"}
+                  {editedDate ? formatFullDate(editedDate, locale) : t("common.selectDate")}
                 </Button>
               </PopoverTrigger>
               <PopoverContent className="w-auto p-0" align="start">
@@ -1216,7 +1197,7 @@ export default function MatchPage({ params }: { params: { id: string } }) {
           </div>
         ) : (
           <>
-            <h1 className="text-2xl font-bold">{match ? formatReadableDate(match.date) : "Persembe Halisaha"}</h1>
+            <h1 className="text-2xl font-bold">{match ? formatMatchDate(match.date, locale) : "Persembe Halisaha"}</h1>
             {isAdmin && (
               <Button
                 size="sm"
@@ -1243,14 +1224,14 @@ export default function MatchPage({ params }: { params: { id: string } }) {
         <CardHeader className="pb-2">
           <CardTitle className="flex items-center gap-2">
             <Calendar className="h-5 w-5" />
-            {formatReadableDate(match.date)} - Mac Bilgileri
+            {formatMatchDate(match.date, locale)} - {t("match.infoTitle")}
           </CardTitle>
           <CardDescription>
             {match.status === "registering"
-              ? "Kayıt aşamasında"
+              ? t("match.statusRegistering")
               : match.status === "ready"
-                ? "Takımlar hazırlanıyor"
-                : "Maç tamamlandı"}
+                ? t("match.statusReady")
+                : t("match.statusDone")}
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -1261,9 +1242,9 @@ export default function MatchPage({ params }: { params: { id: string } }) {
           <div className="flex items-center">
             <Users className="mr-2 h-4 w-4 text-muted-foreground" />
             <span>
-              Kayıtlı Oyuncu: {activePlayerCount}/18
-              {waitlistedPlayers.length > 0 && ` (Bekleme Listesi: ${waitlistedPlayers.length})`}
-              {canceledPlayers.length > 0 && ` (İptal: ${canceledPlayers.length})`}
+              {t("match.registeredPlayers", { count: activePlayerCount })}
+              {waitlistedPlayers.length > 0 && ` ${t("match.waitlistCount", { count: waitlistedPlayers.length })}`}
+              {canceledPlayers.length > 0 && ` ${t("match.canceledCount", { count: canceledPlayers.length })}`}
             </span>
           </div>
 
@@ -1271,11 +1252,11 @@ export default function MatchPage({ params }: { params: { id: string } }) {
           <div className="mt-4 pt-4 border-t">
             {isAdmin && match.status === "done" ? (
               <div>
-                <h3 className="text-sm font-medium mb-2">Skor</h3>
+                <h3 className="text-sm font-medium mb-2">{t("match.scoreHeading")}</h3>
                 <div className="flex items-center gap-2 mb-3">
                   <div className="flex-1">
                     <Label htmlFor="scoreA" className="text-xs mb-1 block">
-                      Takım A
+                      {t("team.a")}
                     </Label>
                     <Input
                       id="scoreA"
@@ -1289,7 +1270,7 @@ export default function MatchPage({ params }: { params: { id: string } }) {
                   <div className="text-xl font-bold self-end mb-2">-</div>
                   <div className="flex-1">
                     <Label htmlFor="scoreB" className="text-xs mb-1 block">
-                      Takım B
+                      {t("team.b")}
                     </Label>
                     <Input
                       id="scoreB"
@@ -1308,11 +1289,11 @@ export default function MatchPage({ params }: { params: { id: string } }) {
                 >
                   {savingScore ? (
                     <>
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Kaydediliyor...
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" /> {t("common.saving")}
                     </>
                   ) : (
                     <>
-                      <Save className="mr-2 h-4 w-4" /> Skoru Kaydet
+                      <Save className="mr-2 h-4 w-4" /> {t("match.saveScore")}
                     </>
                   )}
                 </Button>
@@ -1320,7 +1301,7 @@ export default function MatchPage({ params }: { params: { id: string } }) {
             ) : (
               match.status === "done" && (
                 <div className="text-center">
-                  <div className="text-sm text-muted-foreground mb-1">Skor</div>
+                  <div className="text-sm text-muted-foreground mb-1">{t("match.scoreHeading")}</div>
                   <div className="text-2xl font-bold">
                     {match.score_a ?? 0} - {match.score_b ?? 0}
                   </div>
@@ -1333,13 +1314,13 @@ export default function MatchPage({ params }: { params: { id: string } }) {
             <Link href={`/organize_teams/${match.id}`} passHref>
               <Button variant="outline" className="w-full bg-transparent">
                 <Users className="mr-2 h-4 w-4" />
-                Takımları Düzenle
+                {t("match.organizeTeams")}
               </Button>
             </Link>
             {isAdmin && (
               <Button variant="outline" className="w-full bg-transparent" onClick={() => setBulkAddDialogOpen(true)}>
                 <UserPlus className="mr-2 h-4 w-4" />
-                Toplu Oyuncu Ekle
+                {t("match.bulkAdd")}
               </Button>
             )}
           </div>
@@ -1355,17 +1336,17 @@ export default function MatchPage({ params }: { params: { id: string } }) {
       {bulkAddResult && (
         <Card className="mb-6 border-blue-200 bg-blue-50 dark:border-blue-800 dark:bg-blue-900/20">
           <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-lg">Toplu Ekleme Sonucu</CardTitle>
+            <CardTitle className="text-lg">{t("match.bulkAddResultTitle")}</CardTitle>
             <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => setBulkAddResult(null)}>
               <X className="h-4 w-4" />
-              <span className="sr-only">Sonucu gizle</span>
+              <span className="sr-only">{t("common.dismiss")}</span>
             </Button>
           </CardHeader>
           <CardContent>
             {bulkAddResult.added.length > 0 && (
               <div className="mb-3">
                 <p className="font-medium text-green-700 dark:text-green-400">
-                  {bulkAddResult.added.length} oyuncu eklendi:
+                  {t("match.bulkAddedCount", { count: bulkAddResult.added.length })}
                 </p>
                 <p className="text-sm text-muted-foreground">{bulkAddResult.added.map((u) => u.name).join(", ")}</p>
               </div>
@@ -1373,7 +1354,7 @@ export default function MatchPage({ params }: { params: { id: string } }) {
             {bulkAddResult.alreadyRegistered.length > 0 && (
               <div className="mb-3">
                 <p className="font-medium text-yellow-700 dark:text-yellow-400">
-                  {bulkAddResult.alreadyRegistered.length} oyuncu zaten kayıtlıydı:
+                  {t("match.alreadyRegisteredCount", { count: bulkAddResult.alreadyRegistered.length })}
                 </p>
                 <p className="text-sm text-muted-foreground">{bulkAddResult.alreadyRegistered.join(", ")}</p>
               </div>
@@ -1381,10 +1362,10 @@ export default function MatchPage({ params }: { params: { id: string } }) {
             {bulkAddResult.notFound.length > 0 && (
               <div>
                 <p className="font-medium text-red-700 dark:text-red-400">
-                  {bulkAddResult.notFound.length} oyuncu sistemde bulunamadı:
+                  {t("match.notFoundCount", { count: bulkAddResult.notFound.length })}
                 </p>
                 <p className="text-sm text-muted-foreground mb-2">
-                  Bu oyuncuları manuel olarak kaydetmek için isimlerine tıklayın.
+                  {t("match.manualRegisterHelp")}
                 </p>
                 <div className="flex flex-wrap gap-2">
                   {bulkAddResult.notFound.map((notFoundName) => (
@@ -1415,14 +1396,14 @@ export default function MatchPage({ params }: { params: { id: string } }) {
       {match.status === "registering" && (
         <Card className="mb-6">
           <CardHeader>
-            <CardTitle>Kayıt Ol</CardTitle>
-            <CardDescription>Maça katılmak için kaydol</CardDescription>
+            <CardTitle>{t("match.registerTitle")}</CardTitle>
+            <CardDescription>{t("match.registerDesc")}</CardDescription>
           </CardHeader>
           <CardContent>
             <div className="space-y-4">
               <div className="space-y-2">
                 <Label htmlFor="name-input">
-                  İsim <span className="text-red-500">*</span>
+                  {t("common.name")} <span className="text-red-500">*</span>
                 </Label>
                 <PlayerNameAutocomplete
                   id="name-input"
@@ -1437,10 +1418,10 @@ export default function MatchPage({ params }: { params: { id: string } }) {
                 <Button className="flex-1" onClick={handleRegister} disabled={submitting}>
                   {submitting ? (
                     <>
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Kaydediliyor...
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" /> {t("common.saving")}
                     </>
                   ) : (
-                    "Kaydol"
+                    t("match.registerButton")
                   )}
                 </Button>
               </div>
@@ -1452,30 +1433,34 @@ export default function MatchPage({ params }: { params: { id: string } }) {
       {/* Players List */}
       <Card>
         <CardHeader>
-          <CardTitle>{match.status === "done" ? "Ödeme Durumu" : "Kayıtlı Oyuncular"}</CardTitle>
+          <CardTitle>
+            {match.status === "done" ? t("match.paymentStatusTitle") : t("match.registeredPlayersTitle")}
+          </CardTitle>
           <CardDescription>
-            {match.status === "done" ? "Oyuncuların ödeme durumu" : `Toplam ${activePlayerCount} aktif oyuncu kayıtlı`}
+            {match.status === "done"
+              ? t("match.paymentStatusDesc")
+              : t("match.playersCountDesc", { count: activePlayerCount })}
           </CardDescription>
         </CardHeader>
         <CardContent>
           {showTeamView ? (
             <>
-              {renderPlayerList(teamAPlayers, "Takım A", "team")}
-              {renderPlayerList(teamBPlayers, "Takım B", "team")}
-              {renderPlayerList(unassignedPlayers, "Takım Belirsiz", "team")}
+              {renderPlayerList(teamAPlayers, t("team.a"), "team")}
+              {renderPlayerList(teamBPlayers, t("team.b"), "team")}
+              {renderPlayerList(unassignedPlayers, t("organize.unassignedTitle"), "team")}
             </>
           ) : (
             renderPlayerList(
               players.filter((p) => p.status === "active"),
-              "Aktif Oyuncular",
+              t("match.registeredPlayersTitle"),
               "active",
             )
           )}
-          {renderPlayerList(waitlistedPlayers, "Bekleme Listesi", "waitlist")}
-          {renderPlayerList(canceledPlayers, "İptal Edilenler", "canceled")}
+          {renderPlayerList(waitlistedPlayers, t("match.waitlistTitle"), "waitlist")}
+          {renderPlayerList(canceledPlayers, t("match.canceledTitle"), "canceled")}
 
           {players.length === 0 && (
-            <div className="text-center py-4 text-muted-foreground">Henüz kayıtlı oyuncu bulunmamaktadır.</div>
+            <div className="text-center py-4 text-muted-foreground">{t("match.noPlayers")}</div>
           )}
         </CardContent>
       </Card>
@@ -1484,21 +1469,21 @@ export default function MatchPage({ params }: { params: { id: string } }) {
       <Dialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Oyuncu Silme</DialogTitle>
+            <DialogTitle>{t("match.deletePlayerTitle")}</DialogTitle>
             <DialogDescription>
-              {playerToDelete?.name} isimli oyuncuyu silmek istediğinize emin misiniz?
+              {t("match.deletePlayerConfirm", { name: playerToDelete?.name ?? "" })}
               {playerToDelete?.phone && !isAutoGeneratedPhone(playerToDelete.phone)
-                ? " Telefon numarasını girerek onaylayın."
+                ? t("match.confirmWithPhone")
                 : ""}
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-4">
             {playerToDelete?.phone && !isAutoGeneratedPhone(playerToDelete.phone) ? (
               <div className="space-y-2">
-                <Label htmlFor="verification-phone">Telefon Numarası</Label>
+                <Label htmlFor="verification-phone">{t("common.phoneLabel")}</Label>
                 <Input
                   id="verification-phone"
-                  placeholder="5XX XXX XX XX"
+                  placeholder={t("common.phonePlaceholder")}
                   value={verificationPhone}
                   onChange={(e) => setVerificationPhone(e.target.value)}
                 />
@@ -1506,23 +1491,23 @@ export default function MatchPage({ params }: { params: { id: string } }) {
             ) : (
               <p className="text-sm text-muted-foreground">
                 {isAutoGeneratedPhone(playerToDelete?.phone || "")
-                  ? "Bu oyuncu telefon numarası olmadan kaydedilmiş."
-                  : "Bu oyuncu için telefon doğrulaması gerekmemektedir."}{" "}
-                Silmek için onaylayın.
+                  ? t("match.noPhoneRegistered")
+                  : t("match.phoneNotRequired")}{" "}
+                {t("match.confirmToDelete")}
               </p>
             )}
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setDeleteDialogOpen(false)} disabled={deleting}>
-              İptal
+              {t("common.cancel")}
             </Button>
             <Button variant="destructive" onClick={handleDeletePlayer} disabled={deleting}>
               {deleting ? (
                 <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Siliniyor...
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" /> {t("common.deleting")}
                 </>
               ) : (
-                "Sil"
+                t("common.delete")
               )}
             </Button>
           </DialogFooter>
@@ -1533,27 +1518,27 @@ export default function MatchPage({ params }: { params: { id: string } }) {
       <Dialog open={cancelDialogOpen} onOpenChange={setCancelDialogOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Kayıt İptali</DialogTitle>
+            <DialogTitle>{t("match.cancelRegistrationTitle")}</DialogTitle>
             <DialogDescription>
-              {playerToCancel?.name} isimli oyuncu için kaydınızı iptal etmek istediğinize emin misiniz?
+              {t("match.cancelRegistrationConfirm", { name: playerToCancel?.name ?? "" })}
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-4">
             <p className="text-sm text-muted-foreground">
-              İptal edilen kayıtlar listede görünmeye devam edecek ancak aktif oyuncular arasında yer almayacaktır.
+              {t("match.canceledExplanation")}
             </p>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setCancelDialogOpen(false)} disabled={canceling}>
-              Vazgeç
+              {t("common.dismiss")}
             </Button>
             <Button variant="destructive" onClick={handleCancelRegistration} disabled={canceling}>
               {canceling ? (
                 <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" /> İptal Ediliyor...
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" /> {t("common.canceling")}
                 </>
               ) : (
-                "İptal Et"
+                t("match.cancelAction")
               )}
             </Button>
           </DialogFooter>
@@ -1564,9 +1549,9 @@ export default function MatchPage({ params }: { params: { id: string } }) {
       <Dialog open={paymentDialogOpen} onOpenChange={setPaymentDialogOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Ödeme Yap</DialogTitle>
+            <DialogTitle>{t("payment.dialogTitle")}</DialogTitle>
             <DialogDescription>
-              Maç ücreti £{match?.price.toFixed(2)} ödemenizi güvenli bir şekilde yapabilirsiniz.
+              {t("payment.dialogDesc", { price: match?.price.toFixed(2) ?? "" })}
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-4">
@@ -1577,14 +1562,14 @@ export default function MatchPage({ params }: { params: { id: string } }) {
               <TabsList className={`grid w-full ${revolutAllowed ? "grid-cols-3" : "grid-cols-2"}`}>
                 {revolutAllowed && (
                   <TabsTrigger value="revolut">
-                    <ExternalLink className="mr-1 h-4 w-4" /> Revolut
+                    <ExternalLink className="mr-1 h-4 w-4" /> {t("payment.revolutTab")}
                   </TabsTrigger>
                 )}
                 <TabsTrigger value="starling">
-                  <Landmark className="mr-1 h-4 w-4" /> Starling
+                  <Landmark className="mr-1 h-4 w-4" /> {t("payment.starlingTab")}
                 </TabsTrigger>
                 <TabsTrigger value="stripe">
-                  <CreditCard className="mr-1 h-4 w-4" /> Kart
+                  <CreditCard className="mr-1 h-4 w-4" /> {t("payment.cardTab")}
                 </TabsTrigger>
               </TabsList>
 
@@ -1593,9 +1578,9 @@ export default function MatchPage({ params }: { params: { id: string } }) {
               <TabsContent value="revolut" className="space-y-4">
                 <div className="p-4 bg-gray-50 dark:bg-gray-900 rounded-lg border dark:border-gray-800">
                   <div className="text-center mb-4">
-                    <p className="font-medium mb-2">Revolut ile ödeme</p>
+                    <p className="font-medium mb-2">{t("payment.revolutHeading")}</p>
                     <p className="text-sm text-muted-foreground mb-2">
-                      Aşağıdaki butona tıklayarak Revolut üzerinden ödeme yapabilirsiniz.
+                      {t("payment.revolutHelp")}
                     </p>
                     <p className="text-lg font-bold text-green-600 mb-4">£{match?.price.toFixed(2)}</p>
                     <Button
@@ -1605,11 +1590,11 @@ export default function MatchPage({ params }: { params: { id: string } }) {
                     >
                       {processingPayment ? (
                         <>
-                          <Loader2 className="mr-2 h-4 w-4 animate-spin" /> İşleniyor...
+                          <Loader2 className="mr-2 h-4 w-4 animate-spin" /> {t("common.processing")}
                         </>
                       ) : (
                         <>
-                          <ExternalLink className="mr-2 h-4 w-4" /> Revolut ile Öde
+                          <ExternalLink className="mr-2 h-4 w-4" /> {t("payment.revolutPayButton")}
                         </>
                       )}
                     </Button>
@@ -1619,7 +1604,7 @@ export default function MatchPage({ params }: { params: { id: string } }) {
                       rel="noopener noreferrer"
                       className="mt-2 text-sm text-center text-blue-600 hover:underline dark:text-blue-400 block"
                     >
-                      Alternatif Link
+                      {t("payment.revolutAltLink")}
                     </a>
                   </div>
 
@@ -1634,7 +1619,7 @@ export default function MatchPage({ params }: { params: { id: string } }) {
                       htmlFor="paid-with-revolut"
                       className="text-sm font-medium leading-none text-foreground peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
                     >
-                      Zaten ödeme yaptım
+                      {t("payment.alreadyPaid")}
                     </label>
                   </div>
                 </div>
@@ -1645,11 +1630,8 @@ export default function MatchPage({ params }: { params: { id: string } }) {
               <TabsContent value="starling" className="space-y-4">
                 <div className="p-4 bg-gray-50 dark:bg-gray-900 rounded-lg border dark:border-gray-800">
                   <div className="text-center mb-3">
-                    <p className="font-medium mb-1">Banka havalesi (Starling)</p>
-                    <p className="text-sm text-muted-foreground">
-                      Aşağıdaki hesaba <span className="font-semibold">açıklamayı birebir yazarak</span> havale yapın.
-                      Ödemeniz otomatik olarak onaylanır.
-                    </p>
+                    <p className="font-medium mb-1">{t("payment.starlingHeading")}</p>
+                    <p className="text-sm text-muted-foreground">{t("payment.starlingHelp")}</p>
                     <p className="text-lg font-bold text-green-600 mt-2">£{match?.price.toFixed(2)}</p>
                     <Button
                       onClick={() =>
@@ -1661,12 +1643,9 @@ export default function MatchPage({ params }: { params: { id: string } }) {
                       }
                       className="w-full mt-3 bg-blue-600 hover:bg-blue-700"
                     >
-                      <ExternalLink className="mr-2 h-4 w-4" /> Starling ile Öde
+                      <ExternalLink className="mr-2 h-4 w-4" /> {t("payment.starlingPayButton")}
                     </Button>
-                    <p className="text-xs text-amber-600 dark:text-amber-400 mt-2">
-                      Önemli: Ödeme ekranındaki <span className="font-semibold">"personal message"</span> alanına
-                      aşağıdaki referansı birebir yazın; ödemeniz otomatik onaylanır.
-                    </p>
+                    <p className="text-xs text-amber-600 dark:text-amber-400 mt-2">{t("payment.starlingImportant")}</p>
                   </div>
 
                   {(() => {
@@ -1675,14 +1654,14 @@ export default function MatchPage({ params }: { params: { id: string } }) {
                         ? paymentRef(match.date, playerToPay.match_player_id, playerToPay.name)
                         : ""
                     const rows: { label: string; value: string; copy?: boolean }[] = [
-                      { label: "Hesap adı", value: process.env.NEXT_PUBLIC_STARLING_ACCOUNT_NAME || "—" },
-                      { label: "Sort code", value: process.env.NEXT_PUBLIC_STARLING_SORT_CODE || "—" },
+                      { label: t("payment.starlingAccountName"), value: process.env.NEXT_PUBLIC_STARLING_ACCOUNT_NAME || "—" },
+                      { label: t("payment.starlingSortCode"), value: process.env.NEXT_PUBLIC_STARLING_SORT_CODE || "—" },
                       {
-                        label: "Hesap no",
+                        label: t("payment.starlingAccountNumber"),
                         value: process.env.NEXT_PUBLIC_STARLING_ACCOUNT_NUMBER || "—",
                         copy: true,
                       },
-                      { label: "Açıklama (referans)", value: ref, copy: true },
+                      { label: t("payment.starlingReference"), value: ref, copy: true },
                     ]
                     return (
                       <div className="space-y-2">
@@ -1711,9 +1690,7 @@ export default function MatchPage({ params }: { params: { id: string } }) {
                     )
                   })()}
 
-                  <p className="text-xs text-amber-600 dark:text-amber-400 mt-3">
-                    Önemli: Açıklama alanını değiştirmeden yazın; aksi halde ödemeniz otomatik eşleşmez.
-                  </p>
+                  <p className="text-xs text-amber-600 dark:text-amber-400 mt-3">{t("payment.starlingImportant2")}</p>
                 </div>
               </TabsContent>
 
@@ -1724,28 +1701,28 @@ export default function MatchPage({ params }: { params: { id: string } }) {
                     <AlertTriangle className="h-5 w-5 text-red-500 dark:text-red-400 mx-auto mb-2" />
                     <p className="text-red-700 dark:text-red-400 font-medium">{stripeError}</p>
                     <p className="text-sm text-red-600 dark:text-red-300 mt-2">
-                      Lütfen daha sonra tekrar deneyin veya yönetici ile iletişime geçin.
+                      {t("payment.errorHelp")}
                     </p>
                   </div>
                 ) : (
                   <div className="p-4 bg-gray-50 dark:bg-gray-900 rounded-lg border dark:border-gray-800 text-center">
-                    <p className="font-medium mb-2">Stripe ile güvenli ödeme</p>
+                    <p className="font-medium mb-2">{t("payment.stripeHeading")}</p>
                     <p className="text-sm text-muted-foreground mb-2">
-                      Kredi kartı veya banka kartı ile ödeme yapabilirsiniz.
+                      {t("payment.stripeHelp")}
                     </p>
                     <div className="mb-4">
                       <p className="text-lg font-bold text-blue-600">£{stripePrice.toFixed(2)}</p>
                       <p className="text-xs text-muted-foreground">
-                        (£{match?.price.toFixed(2)} + £0.20 Stripe komisyonu)
+                        {t("payment.stripeFee", { price: match?.price.toFixed(2) ?? "" })}
                       </p>
                     </div>
                     <Button onClick={handleStripeCheckout} disabled={processingPayment} className="w-full">
                       {processingPayment ? (
                         <>
-                          <Loader2 className="mr-2 h-4 w-4 animate-spin" /> İşleniyor...
+                          <Loader2 className="mr-2 h-4 w-4 animate-spin" /> {t("common.processing")}
                         </>
                       ) : (
-                        <>£{stripePrice.toFixed(2)} Öde</>
+                        <>{t("payment.stripePayButton", { price: stripePrice.toFixed(2) })}</>
                       )}
                     </Button>
                   </div>
@@ -1759,7 +1736,7 @@ export default function MatchPage({ params }: { params: { id: string } }) {
               onClick={() => setPaymentDialogOpen(false)}
               disabled={processingPayment || confirmingManualPayment}
             >
-              İptal
+              {t("common.cancel")}
             </Button>
             {paymentMethod === "revolut" && (
               <Button
@@ -1769,10 +1746,10 @@ export default function MatchPage({ params }: { params: { id: string } }) {
               >
                 {confirmingManualPayment ? (
                   <>
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" /> İşleniyor...
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" /> {t("common.processing")}
                   </>
                 ) : (
-                  "Tamam"
+                  t("common.ok")
                 )}
               </Button>
             )}
@@ -1784,10 +1761,10 @@ export default function MatchPage({ params }: { params: { id: string } }) {
               >
                 {checkingStarling ? (
                   <>
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Kontrol ediliyor...
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" /> {t("common.checking")}
                   </>
                 ) : (
-                  "Ödememi kontrol et"
+                  t("payment.checkPaymentButton")
                 )}
               </Button>
             )}
@@ -1799,22 +1776,22 @@ export default function MatchPage({ params }: { params: { id: string } }) {
       <Dialog open={confirmDialogOpen} onOpenChange={setConfirmDialogOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Kullanıcı Onaylama</DialogTitle>
+            <DialogTitle>{t("match.confirmUserTitle")}</DialogTitle>
             <DialogDescription>
-              {userToConfirm?.name} isimli kullanıcıyı onaylamak istediğinize emin misiniz?
+              {t("match.confirmUserDesc", { name: userToConfirm?.name ?? "" })}
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
             <Button variant="outline" onClick={() => setConfirmDialogOpen(false)} disabled={confirming}>
-              İptal
+              {t("common.cancel")}
             </Button>
             <Button onClick={handleConfirmUser} disabled={confirming} className="bg-green-600 hover:bg-green-700">
               {confirming ? (
                 <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Onaylanıyor...
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" /> {t("common.approving")}
                 </>
               ) : (
-                "Onayla"
+                t("common.approve")
               )}
             </Button>
           </DialogFooter>
@@ -1824,11 +1801,8 @@ export default function MatchPage({ params }: { params: { id: string } }) {
       <Dialog open={bulkAddDialogOpen} onOpenChange={setBulkAddDialogOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Toplu Oyuncu Ekle</DialogTitle>
-            <DialogDescription>
-              Oyuncu listesini aşağıya yapıştırın. Her oyuncu yeni bir satırda olmalıdır. Sistemde kayıtlı olmayan veya
-              zaten maçta olan oyuncular eklenmeyecektir.
-            </DialogDescription>
+            <DialogTitle>{t("match.bulkAddTitle")}</DialogTitle>
+            <DialogDescription>{t("match.bulkAddHelp")}</DialogDescription>
           </DialogHeader>
           <div className="py-4">
             <Textarea
@@ -1843,15 +1817,15 @@ export default function MatchPage({ params }: { params: { id: string } }) {
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setBulkAddDialogOpen(false)} disabled={bulkAdding}>
-              İptal
+              {t("common.cancel")}
             </Button>
             <Button onClick={handleBulkAdd} disabled={bulkAdding}>
               {bulkAdding ? (
                 <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Ekleniyor...
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" /> {t("common.adding")}
                 </>
               ) : (
-                "Oyuncuları Ekle"
+                t("match.addPlayers")
               )}
             </Button>
           </DialogFooter>

@@ -30,6 +30,7 @@ import { CARD_TIERS, CARD_TIER_ORDER } from "@/app/config/card-tiers"
 import { CLUBS, clubLogoPath, findClub } from "@/app/config/clubs"
 import { updateUserCard, type CardUpdate } from "@/app/lib/profile-service"
 import type { User } from "@/app/lib/types"
+import { useTranslation } from "@/lib/i18n/useTranslation"
 
 interface FifaCardEditorProps {
   user: User
@@ -40,30 +41,42 @@ interface FifaCardEditorProps {
 const POSITIONS = ["GK", "RB", "CB", "LB", "RWB", "LWB", "CDM", "CM", "CAM", "RM", "LM", "RW", "LW", "CF", "ST"]
 
 // Nations we ship a flag for (extend /public/flags as needed). 'tr' default.
-const NATIONS: { code: string; label: string }[] = [
-  { code: "tr", label: "Türkiye" },
-  { code: "de", label: "Almanya" },
-  { code: "gb", label: "İngiltere" },
-  { code: "fr", label: "Fransa" },
-  { code: "es", label: "İspanya" },
-  { code: "it", label: "İtalya" },
-  { code: "br", label: "Brezilya" },
-  { code: "ar", label: "Arjantin" },
-  { code: "nl", label: "Hollanda" },
-  { code: "pt", label: "Portekiz" },
+// `code` is the stored/flag value (unchanged); `i18nKey` maps to a country.* label.
+const NATIONS: { code: string; i18nKey: string }[] = [
+  { code: "tr", i18nKey: "country.turkey" },
+  { code: "de", i18nKey: "country.germany" },
+  { code: "gb", i18nKey: "country.england" },
+  { code: "fr", i18nKey: "country.france" },
+  { code: "es", i18nKey: "country.spain" },
+  { code: "it", i18nKey: "country.italy" },
+  { code: "br", i18nKey: "country.brazil" },
+  { code: "ar", i18nKey: "country.argentina" },
+  { code: "nl", i18nKey: "country.netherlands" },
+  { code: "pt", i18nKey: "country.portugal" },
 ]
 
 type StatKey = "pac" | "sho" | "pas" | "dri" | "def" | "phy"
-const STAT_FIELDS: { key: StatKey; label: string }[] = [
-  { key: "pac", label: "PAC (Hız)" },
-  { key: "sho", label: "SHO (Şut)" },
-  { key: "pas", label: "PAS (Pas)" },
-  { key: "dri", label: "DRI (Çalım)" },
-  { key: "def", label: "DEF (Defans)" },
-  { key: "phy", label: "PHY (Fizik)" },
+// `i18nKey` maps to a fifacard.* label; the stat key/value logic is unchanged.
+const STAT_FIELDS: { key: StatKey; i18nKey: string }[] = [
+  { key: "pac", i18nKey: "fifacard.statPac" },
+  { key: "sho", i18nKey: "fifacard.statSho" },
+  { key: "pas", i18nKey: "fifacard.statPas" },
+  { key: "dri", i18nKey: "fifacard.statDri" },
+  { key: "def", i18nKey: "fifacard.statDef" },
+  { key: "phy", i18nKey: "fifacard.statPhy" },
 ]
 
+// Map a tier id (config key) to its cardtier.* display label key.
+const TIER_LABEL_KEYS: Record<string, string> = {
+  bronze: "cardtier.bronze",
+  silver: "cardtier.silver",
+  gold: "cardtier.gold",
+  special: "cardtier.special",
+  fener: "cardtier.fenerbahce",
+}
+
 export default function FifaCardEditor({ user, onSaved }: FifaCardEditorProps) {
+  const { t } = useTranslation()
   // Local editable state, seeded from the user's current (DB) values via the mapper.
   const initial = useMemo(() => userToCardData(user), [user])
 
@@ -129,10 +142,10 @@ export default function FifaCardEditor({ user, onSaved }: FifaCardEditorProps) {
     const ok = await updateUserCard(user.id, payload)
     setSaving(false)
     if (ok) {
-      toast({ title: "Kaydedildi", description: "Kart güncellendi." })
+      toast({ title: t("common.saved"), description: t("fifacard.cardUpdated") })
       onSaved?.({ ...payload })
     } else {
-      toast({ title: "Hata", description: "Kart kaydedilemedi.", variant: "destructive" })
+      toast({ title: t("common.error"), description: t("fifacard.cardSaveFailed"), variant: "destructive" })
     }
   }
 
@@ -145,11 +158,9 @@ export default function FifaCardEditor({ user, onSaved }: FifaCardEditorProps) {
 
       {isBaked && !unbaked && (
         <div className="rounded-lg border border-yellow-300 bg-yellow-50 p-3 text-sm dark:border-yellow-700/50 dark:bg-yellow-900/20">
-          <p className="mb-2">
-            Mevcut kartın hazır bir resim olarak yüklenmiş. Düzenlenebilir canlı karta geçmek ister misin?
-          </p>
+          <p className="mb-2">{t("fifacard.bakedCardMessage")}</p>
           <Button size="sm" variant="outline" onClick={() => setUnbaked(true)}>
-            <RotateCcw className="mr-2 h-4 w-4" /> Canlı karta geç
+            <RotateCcw className="mr-2 h-4 w-4" /> {t("fifacard.switchToLiveCard")}
           </Button>
         </div>
       )}
@@ -159,7 +170,7 @@ export default function FifaCardEditor({ user, onSaved }: FifaCardEditorProps) {
           {/* Overall */}
           <div className="space-y-2">
             <div className="flex items-center justify-between">
-              <Label>Genel (Overall)</Label>
+              <Label>{t("fifacard.overall")}</Label>
               <span className="text-sm font-bold tabular-nums">{overall}</span>
             </div>
             <Slider value={[overall]} min={0} max={99} step={1} onValueChange={(v) => setOverall(v[0])} />
@@ -168,7 +179,7 @@ export default function FifaCardEditor({ user, onSaved }: FifaCardEditorProps) {
           {/* Position + Tier + Nation */}
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
             <div className="space-y-2">
-              <Label>Pozisyon</Label>
+              <Label>{t("fifacard.position")}</Label>
               <Select value={position} onValueChange={setPosition}>
                 <SelectTrigger>
                   <SelectValue />
@@ -183,22 +194,22 @@ export default function FifaCardEditor({ user, onSaved }: FifaCardEditorProps) {
               </Select>
             </div>
             <div className="space-y-2">
-              <Label>Kart Türü</Label>
+              <Label>{t("fifacard.cardType")}</Label>
               <Select value={tier} onValueChange={(v) => setTier(v as typeof tier)}>
                 <SelectTrigger>
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  {CARD_TIER_ORDER.map((t) => (
-                    <SelectItem key={t} value={t}>
-                      {CARD_TIERS[t].label}
+                  {CARD_TIER_ORDER.map((tierId) => (
+                    <SelectItem key={tierId} value={tierId}>
+                      {TIER_LABEL_KEYS[tierId] ? t(TIER_LABEL_KEYS[tierId]) : CARD_TIERS[tierId].label}
                     </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
             </div>
             <div className="space-y-2">
-              <Label>Ülke</Label>
+              <Label>{t("fifacard.country")}</Label>
               <Select value={nation} onValueChange={setNation}>
                 <SelectTrigger>
                   <SelectValue />
@@ -206,7 +217,7 @@ export default function FifaCardEditor({ user, onSaved }: FifaCardEditorProps) {
                 <SelectContent>
                   {NATIONS.map((n) => (
                     <SelectItem key={n.code} value={n.code}>
-                      {n.label}
+                      {t(n.i18nKey)}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -216,7 +227,7 @@ export default function FifaCardEditor({ user, onSaved }: FifaCardEditorProps) {
 
           {/* Team (searchable) */}
           <div className="space-y-2">
-            <Label>Takım</Label>
+            <Label>{t("fifacard.team")}</Label>
             <Popover open={clubOpen} onOpenChange={setClubOpen}>
               <PopoverTrigger asChild>
                 <Button
@@ -234,7 +245,7 @@ export default function FifaCardEditor({ user, onSaved }: FifaCardEditorProps) {
                         {selectedClub.name}
                       </>
                     ) : (
-                      <span className="text-muted-foreground">Takım seç</span>
+                      <span className="text-muted-foreground">{t("fifacard.teamSelect")}</span>
                     )}
                   </span>
                   <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
@@ -242,9 +253,9 @@ export default function FifaCardEditor({ user, onSaved }: FifaCardEditorProps) {
               </PopoverTrigger>
               <PopoverContent className="w-[--radix-popover-trigger-width] p-0" align="start">
                 <Command>
-                  <CommandInput placeholder="Takım ara..." />
+                  <CommandInput placeholder={t("fifacard.teamSearch")} />
                   <CommandList>
-                    <CommandEmpty>Takım bulunamadı.</CommandEmpty>
+                    <CommandEmpty>{t("fifacard.teamNotFound")}</CommandEmpty>
                     <CommandGroup>
                       <CommandItem
                         value="__none__"
@@ -254,7 +265,7 @@ export default function FifaCardEditor({ user, onSaved }: FifaCardEditorProps) {
                         }}
                       >
                         <Check className={cn("mr-2 h-4 w-4", clubBadgeUrl ? "opacity-0" : "opacity-100")} />
-                        Takım yok
+                        {t("fifacard.noTeam")}
                       </CommandItem>
                       {CLUBS.map((club) => (
                         <CommandItem
@@ -285,12 +296,12 @@ export default function FifaCardEditor({ user, onSaved }: FifaCardEditorProps) {
 
           {/* Six stats */}
           <div className="space-y-4">
-            <Label className="text-base">İstatistikler</Label>
+            <Label className="text-base">{t("fifacard.statsHeading")}</Label>
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-              {STAT_FIELDS.map(({ key, label }) => (
+              {STAT_FIELDS.map(({ key, i18nKey }) => (
                 <div key={key} className="space-y-2">
                   <div className="flex items-center justify-between">
-                    <Label className="text-sm">{label}</Label>
+                    <Label className="text-sm">{t(i18nKey)}</Label>
                     <Input
                       type="number"
                       min={0}
@@ -315,24 +326,24 @@ export default function FifaCardEditor({ user, onSaved }: FifaCardEditorProps) {
           {/* Photo framing (only relevant when there is a photo) */}
           {initial.photoUrl && (
             <div className="space-y-4">
-              <Label className="text-base">Fotoğraf Konumu</Label>
+              <Label className="text-base">{t("fifacard.photoPosition")}</Label>
               <div className="space-y-2">
                 <div className="flex items-center justify-between">
-                  <Label className="text-sm">Yakınlaştırma</Label>
+                  <Label className="text-sm">{t("fifacard.zoom")}</Label>
                   <span className="text-sm tabular-nums">{scale.toFixed(2)}x</span>
                 </div>
                 <Slider value={[scale]} min={0.5} max={2} step={0.05} onValueChange={(v) => setScale(v[0])} />
               </div>
               <div className="space-y-2">
                 <div className="flex items-center justify-between">
-                  <Label className="text-sm">Yatay</Label>
+                  <Label className="text-sm">{t("fifacard.horizontal")}</Label>
                   <span className="text-sm tabular-nums">{offsetX}</span>
                 </div>
                 <Slider value={[offsetX]} min={-100} max={100} step={1} onValueChange={(v) => setOffsetX(v[0])} />
               </div>
               <div className="space-y-2">
                 <div className="flex items-center justify-between">
-                  <Label className="text-sm">Dikey</Label>
+                  <Label className="text-sm">{t("fifacard.vertical")}</Label>
                   <span className="text-sm tabular-nums">{offsetY}</span>
                 </div>
                 <Slider value={[offsetY]} min={-100} max={100} step={1} onValueChange={(v) => setOffsetY(v[0])} />
@@ -343,11 +354,11 @@ export default function FifaCardEditor({ user, onSaved }: FifaCardEditorProps) {
           <Button onClick={handleSave} disabled={saving} className="w-full">
             {saving ? (
               <>
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Kaydediliyor...
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" /> {t("common.saving")}
               </>
             ) : (
               <>
-                <Save className="mr-2 h-4 w-4" /> Kartı Kaydet
+                <Save className="mr-2 h-4 w-4" /> {t("fifacard.saveCard")}
               </>
             )}
           </Button>
