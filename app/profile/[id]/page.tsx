@@ -679,6 +679,7 @@ export default function PlayerProfilePage() {
                         placeholder={t("common.phonePlaceholder")}
                         disabled={updatingContact}
                       />
+                      <p className="text-xs text-muted-foreground">{t("contact.whatsappHint")}</p>
                       <p className="text-xs text-muted-foreground">{t("profile.phoneEditHint")}</p>
                     </div>
 

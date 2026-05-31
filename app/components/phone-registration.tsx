@@ -168,6 +168,7 @@ export function PhoneRegistration() {
                 placeholder={t("common.phonePlaceholder")}
                 disabled={submitting}
               />
+              <p className="text-xs text-muted-foreground">{t("contact.whatsappHint")}</p>
             </div>
           </div>
         ) : (
@@ -227,6 +228,7 @@ export function PhoneRegistration() {
                   placeholder={t("common.phonePlaceholder")}
                   disabled={submitting}
                 />
+                <p className="text-xs text-muted-foreground">{t("contact.whatsappHint")}</p>
               </div>
             )}
           </div>
