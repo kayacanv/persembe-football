@@ -14,15 +14,25 @@
 // Because WXYZ is derived from the unique match_player row, the whole code is
 // unique per registration — matching is deterministic, not fuzzy.
 
+// Transliterate Turkish letters to their English equivalents so "Şükrü" -> "SUKRU"
+// (rather than dropping ş/ü). Applied before stripping to A-Z.
+const TR_MAP: Record<string, string> = {
+  ç: "c", Ç: "c", ğ: "g", Ğ: "g", ı: "i", İ: "i", ö: "o", Ö: "o", ş: "s", Ş: "s", ü: "u", Ü: "u",
+}
+function toAscii(input: string | null | undefined): string {
+  return (input ?? "").replace(/[çÇğĞıİöÖşŞüÜ]/g, (m) => TR_MAP[m] ?? m)
+}
+
 // Strip everything but A-Z0-9 and uppercase, so "abc 2805 wxyz" and "ABC-2805-WXYZ"
 // compare equal. Used on both the generated code and the payer-supplied reference.
 export function normalizeRef(input: string | null | undefined): string {
-  return (input ?? "").toUpperCase().replace(/[^A-Z0-9]/g, "")
+  return toAscii(input).toUpperCase().replace(/[^A-Z0-9]/g, "")
 }
 
-// First 3 A-Z letters of the name, padded to 3 with X (handles short/Turkish names).
+// First 3 A-Z letters of the name (Turkish letters cast to English), padded to 3
+// with X for very short names.
 function namePart(name: string | null | undefined): string {
-  const letters = (name ?? "").toUpperCase().replace(/[^A-Z]/g, "")
+  const letters = toAscii(name).toUpperCase().replace(/[^A-Z]/g, "")
   return (letters.slice(0, 3) || "").padEnd(3, "X")
 }
 
