@@ -21,7 +21,8 @@ type NamedUser = { id: string; name: string }
 // Numbers are write-only here — no existing number is ever fetched or shown.
 export function PhoneRegistration() {
   const { t } = useTranslation()
-  const [mode, setMode] = useState<Mode>("new")
+  // Default to attaching a number to an existing player (the common case).
+  const [mode, setMode] = useState<Mode>("existing")
 
   // shared phone field
   const [dial, setDial] = useState(DEFAULT_DIAL)
@@ -127,21 +128,21 @@ export function PhoneRegistration() {
           <span>{t("contact.privacyNote")}</span>
         </div>
 
-        {/* Mode toggle */}
+        {/* Mode toggle — existing player first (default), new player on the right */}
         <div className="grid grid-cols-2 gap-2">
-          <Button
-            type="button"
-            variant={mode === "new" ? "default" : "outline"}
-            onClick={() => switchMode("new")}
-          >
-            {t("contact.modeNew")}
-          </Button>
           <Button
             type="button"
             variant={mode === "existing" ? "default" : "outline"}
             onClick={() => switchMode("existing")}
           >
             {t("contact.modeExisting")}
+          </Button>
+          <Button
+            type="button"
+            variant={mode === "new" ? "default" : "outline"}
+            onClick={() => switchMode("new")}
+          >
+            {t("contact.modeNew")}
           </Button>
         </div>
 
