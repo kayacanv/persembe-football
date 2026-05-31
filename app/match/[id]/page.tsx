@@ -1637,20 +1637,25 @@ export default function MatchPage({ params }: { params: { id: string } }) {
                     </p>
                     <p className="text-lg font-bold text-green-600 mt-2">£{match?.price.toFixed(2)}</p>
                     <Button
-                      onClick={() =>
+                      onClick={() => {
+                        const amount = match?.price.toFixed(2) ?? ""
+                        const ref =
+                          playerToPay && match
+                            ? paymentRef(match.date, playerToPay.match_player_id, playerToPay.name)
+                            : ""
                         window.open(
-                          `https://settleup.starlingbank.com/kayacan-vesek-6f4fc7?amount=${match?.price.toFixed(2) ?? ""}`,
+                          `https://settleup.starlingbank.com/kayacan-vesek-6f4fc7?amount=${amount}&message=${encodeURIComponent(ref)}`,
                           "_blank",
                           "noopener,noreferrer",
                         )
-                      }
+                      }}
                       className="w-full mt-3 bg-blue-600 hover:bg-blue-700"
                     >
                       <ExternalLink className="mr-2 h-4 w-4" /> Starling ile Öde
                     </Button>
-                    <p className="text-xs text-muted-foreground mt-2">
-                      Hızlı ödeme için yukarıdaki butonu kullanın. Ödemenizin otomatik onaylanması için
-                      aşağıdaki <span className="font-semibold">havale + açıklama</span> yöntemini tercih edin.
+                    <p className="text-xs text-amber-600 dark:text-amber-400 mt-2">
+                      Önemli: Ödeme ekranındaki <span className="font-semibold">"personal message"</span> alanına
+                      aşağıdaki referansı birebir yazın; ödemeniz otomatik onaylanır.
                     </p>
                   </div>
 
