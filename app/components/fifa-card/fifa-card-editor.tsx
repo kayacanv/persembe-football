@@ -81,6 +81,7 @@ export default function FifaCardEditor({ user, onSaved }: FifaCardEditorProps) {
   const initial = useMemo(() => userToCardData(user), [user])
 
   const [overall, setOverall] = useState(initial.overall)
+  const [jerseyNumber, setJerseyNumber] = useState<number | null>(initial.jerseyNumber ?? null)
   const [position, setPosition] = useState(initial.position)
   const [tier, setTier] = useState(initial.tier)
   const [nation, setNation] = useState(initial.nation || "tr")
@@ -104,6 +105,7 @@ export default function FifaCardEditor({ user, onSaved }: FifaCardEditorProps) {
     () => ({
       ...initial,
       overall,
+      jerseyNumber,
       position,
       tier,
       nation,
@@ -112,7 +114,7 @@ export default function FifaCardEditor({ user, onSaved }: FifaCardEditorProps) {
       baked: isBaked && !unbaked,
       photo: { scale, x: offsetX, y: offsetY, fade },
     }),
-    [initial, overall, position, tier, nation, clubBadgeUrl, stats, scale, offsetX, offsetY, fade, isBaked, unbaked],
+    [initial, overall, jerseyNumber, position, tier, nation, clubBadgeUrl, stats, scale, offsetX, offsetY, fade, isBaked, unbaked],
   )
 
   const setStat = (key: StatKey, value: number) => setStats((s) => ({ ...s, [key]: value }))
@@ -122,6 +124,7 @@ export default function FifaCardEditor({ user, onSaved }: FifaCardEditorProps) {
     setSaving(true)
     const payload: CardUpdate = {
       card_overall: overall,
+      jersey_number: jerseyNumber,
       card_position: position,
       card_tier: tier,
       card_nation: nation,
@@ -174,6 +177,25 @@ export default function FifaCardEditor({ user, onSaved }: FifaCardEditorProps) {
               <span className="text-sm font-bold tabular-nums">{overall}</span>
             </div>
             <Slider value={[overall]} min={0} max={99} step={1} onValueChange={(v) => setOverall(v[0])} />
+          </div>
+
+          {/* Jersey / squad number */}
+          <div className="space-y-2">
+            <Label>{t("fifacard.jerseyNumber")}</Label>
+            <Input
+              type="number"
+              min={1}
+              max={99}
+              inputMode="numeric"
+              placeholder={t("fifacard.jerseyNumberNone")}
+              value={jerseyNumber ?? ""}
+              onChange={(e) => {
+                const v = e.target.value.trim()
+                if (v === "") return setJerseyNumber(null)
+                setJerseyNumber(Math.max(1, Math.min(99, Math.floor(Number(v) || 0))))
+              }}
+              className="h-9 w-28 text-center"
+            />
           </div>
 
           {/* Position + Tier + Nation */}

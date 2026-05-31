@@ -84,6 +84,8 @@ export async function getPlayersForMatch(matchId: string): Promise<PlayerWithDet
       team,
       status,
       position,
+      field_x,
+      field_y,
       registration_date,
       cancellation_date,
       users (
@@ -95,6 +97,7 @@ export async function getPlayersForMatch(matchId: string): Promise<PlayerWithDet
         power,
         position_weight,
         photo_url,
+        jersey_number,
         card_overall,
         card_pac,
         card_sho,
@@ -131,6 +134,7 @@ export async function getPlayersForMatch(matchId: string): Promise<PlayerWithDet
     power: item.users.power || 5, // Default to 5 if power is null
     position_weight: item.users.position_weight || 3, // Default to 3 if position_weight is null
     photo_url: item.users.photo_url, // Added photo_url
+    jersey_number: item.users.jersey_number ?? undefined,
     // FIFA card fields (?? keeps cards rendering even if a column is missing/null)
     card_overall: item.users.card_overall ?? undefined,
     card_pac: item.users.card_pac ?? undefined,
@@ -153,6 +157,8 @@ export async function getPlayersForMatch(matchId: string): Promise<PlayerWithDet
     match_player_id: item.id,
     status: item.status as PlayerStatus,
     field_position: item.position, // This is the field position number (1-8)
+    field_x: item.field_x ?? null, // exact pitch x % (source of truth for layout)
+    field_y: item.field_y ?? null, // exact pitch y %
     registration_date: item.registration_date,
     cancellation_date: item.cancellation_date,
   }))

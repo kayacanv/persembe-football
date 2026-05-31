@@ -52,6 +52,7 @@ export async function updateUserProfile(
 export type CardUpdate = Partial<
   Pick<
     User,
+    | "jersey_number"
     | "card_overall"
     | "card_pac"
     | "card_sho"

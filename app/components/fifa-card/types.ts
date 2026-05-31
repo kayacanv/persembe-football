@@ -24,6 +24,7 @@ export interface CardData {
   name: string
   overall: number
   position: string // FIFA slot, e.g. "ST" | "CB" | "GK"
+  jerseyNumber?: number | null // editable squad/shirt number (1-99); null = none
   stats: CardStats
   nation?: string | null // ISO-ish code -> /flags/<code>.svg
   clubBadgeUrl?: string | null
@@ -74,6 +75,7 @@ export function userToCardData(user: Partial<User> & { name: string }): CardData
     name: user.name,
     overall: clamp(user.card_overall ?? 70),
     position: user.card_position || fb.cardPosition,
+    jerseyNumber: user.jersey_number ?? null,
     stats,
     nation: user.card_nation ?? "tr",
     clubBadgeUrl: user.club_badge_url ?? null,

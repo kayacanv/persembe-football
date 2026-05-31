@@ -14,6 +14,7 @@ export type User = {
   position_weight: number // Attack tendency from 1-5 (1=defend, 5=attack)
   photo_url?: string | null // URL for the player's photo
   created_at?: string
+  jersey_number?: number | null // editable squad/shirt number (1-99), shown on the card
   // --- FIFA-style card fields (cosmetic, independent of `power`/team balancing) ---
   card_overall?: number // 0-99
   card_pac?: number
@@ -52,6 +53,8 @@ export type MatchPlayer = {
   team: Team
   status: PlayerStatus
   position: number // Position number (0-8), 0 means unassigned
+  field_x?: number | null // normalized pitch x % (0-100); source of truth for layout
+  field_y?: number | null // normalized pitch y % (0-100, forward line at top)
   registration_date: string
   cancellation_date?: string | null
   created_at?: string
@@ -66,6 +69,8 @@ export type PlayerWithDetails = User & {
   match_player_id: string
   status: PlayerStatus
   field_position: number // Position number (0-8), 0 means unassigned
+  field_x?: number | null // normalized pitch x % (0-100); source of truth for layout
+  field_y?: number | null // normalized pitch y % (0-100, forward line at top)
   registration_date: string
   cancellation_date?: string | null
   waitlist_position?: number

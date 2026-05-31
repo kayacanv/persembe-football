@@ -1,311 +1,175 @@
 "use client"
 
-import { useDroppable } from "@dnd-kit/core"
-import { useDraggable } from "@dnd-kit/core"
+import type { CSSProperties } from "react"
+import { useDroppable, useDraggable } from "@dnd-kit/core"
 import { CSS } from "@dnd-kit/utilities"
-import { useState } from "react"
+import { X } from "lucide-react"
 import type { PlayerWithDetails } from "@/app/lib/types"
-import { X, ChevronDown } from "lucide-react"
 import FifaCard from "@/app/components/fifa-card/fifa-card"
-import { useTranslation } from "@/lib/i18n/useTranslation"
+import {
+  BANDS,
+  BAND_Y,
+  BAND_LABEL,
+  bandX,
+  type BandId,
+  type TeamShape,
+  type TeamSide,
+} from "@/app/lib/formation"
 
-interface SoccerFieldProps {
-  team: "A" | "B"
-  positions: Record<string, PlayerWithDetails | null>
-  onRemovePlayer: (positionId: string) => void
-  onAssignPlayer: (positionId: string, player: PlayerWithDetails) => void
-  unassignedPlayers: PlayerWithDetails[]
+interface FormationPitchProps {
+  team: TeamSide
+  shape: TeamShape
+  onRemovePlayer: (playerId: string) => void
+  /** Tap-to-place fallback: fired when an empty part of a line is tapped while a bench player is selected. */
+  onTapBand?: (band: BandId) => void
+  /** True when a bench player is selected — highlights the lines as drop targets. */
+  selecting?: boolean
 }
 
-export default function SoccerField({
+// A team's pitch: five droppable lines (FWD..DEF) with cards auto-arranged symmetrically.
+export default function FormationPitch({
   team,
-  positions,
+  shape,
   onRemovePlayer,
-  onAssignPlayer,
-  unassignedPlayers,
-}: SoccerFieldProps) {
-  const { t } = useTranslation()
-  const [activePosition, setActivePosition] = useState<string | null>(null)
-
-  const handlePositionClick = (positionId: string) => {
-    if (activePosition === positionId) {
-      setActivePosition(null)
-    } else {
-      setActivePosition(positionId)
-    }
-  }
-
-  const handlePlayerSelect = (positionId: string, player: PlayerWithDetails) => {
-    onAssignPlayer(positionId, player)
-    setActivePosition(null)
-  }
+  onTapBand,
+  selecting,
+}: FormationPitchProps) {
+  const ring = team === "A" ? "ring-blue-400 dark:ring-blue-500" : "ring-red-400 dark:ring-red-500"
 
   return (
     <div
-      className="relative w-full aspect-[3/4] rounded-xl overflow-hidden border-2 border-emerald-900 shadow-md"
+      className="relative w-full aspect-[3/4] overflow-hidden rounded-xl border-2 border-emerald-950/70 shadow-md"
       style={{
         backgroundImage:
           "repeating-linear-gradient(to bottom, #15803d 0, #15803d 8.33%, #16a34a 8.33%, #16a34a 16.66%)",
       }}
     >
-      {/* Field markings */}
-      <div className="absolute inset-2 border-2 border-white/40 rounded-sm pointer-events-none">
-        {/* Halfway line */}
-        <div className="absolute top-1/2 left-0 right-0 border-t-2 border-white/40 -translate-y-px"></div>
-        {/* Center circle */}
-        <div className="absolute top-1/2 left-1/2 w-14 h-14 border-2 border-white/40 rounded-full -translate-x-1/2 -translate-y-1/2"></div>
-        {/* Top penalty box */}
-        <div className="absolute top-0 left-1/2 w-24 h-10 border-2 border-t-0 border-white/40 -translate-x-1/2"></div>
-        {/* Bottom penalty box */}
-        <div className="absolute bottom-0 left-1/2 w-24 h-10 border-2 border-b-0 border-white/40 -translate-x-1/2"></div>
+      {/* Pitch markings */}
+      <div className="pointer-events-none absolute inset-2 rounded-sm border-2 border-white/30">
+        <div className="absolute left-0 right-0 top-1/2 -translate-y-px border-t-2 border-white/30" />
+        <div className="absolute left-1/2 top-1/2 h-14 w-14 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-white/30" />
+        <div className="absolute left-1/2 top-0 h-9 w-24 -translate-x-1/2 border-2 border-t-0 border-white/30" />
+        <div className="absolute bottom-0 left-1/2 h-9 w-24 -translate-x-1/2 border-2 border-b-0 border-white/30" />
       </div>
 
-      {/* Positions */}
-      <div className="absolute inset-0 grid grid-rows-3 p-2">
-        {/* Forwards (3) */}
-        <div className="grid grid-cols-3 items-center">
-          <PositionDroppable
-            id={`forward-left-${team}`}
-            player={positions["forward-left"]}
-            team={team}
-            label={t("positions.forwardLeft")}
-            onRemove={() => onRemovePlayer("forward-left")}
-            isActive={activePosition === `forward-left-${team}`}
-            onClick={() => handlePositionClick(`forward-left-${team}`)}
-            unassignedPlayers={unassignedPlayers}
-            onPlayerSelect={(player) => handlePlayerSelect("forward-left", player)}
-          />
-          <PositionDroppable
-            id={`forward-center-${team}`}
-            player={positions["forward-center"]}
-            team={team}
-            label={t("positions.forwardCenter")}
-            onRemove={() => onRemovePlayer("forward-center")}
-            isActive={activePosition === `forward-center-${team}`}
-            onClick={() => handlePositionClick(`forward-center-${team}`)}
-            unassignedPlayers={unassignedPlayers}
-            onPlayerSelect={(player) => handlePlayerSelect("forward-center", player)}
-          />
-          <PositionDroppable
-            id={`forward-right-${team}`}
-            player={positions["forward-right"]}
-            team={team}
-            label={t("positions.forwardRight")}
-            onRemove={() => onRemovePlayer("forward-right")}
-            isActive={activePosition === `forward-right-${team}`}
-            onClick={() => handlePositionClick(`forward-right-${team}`)}
-            unassignedPlayers={unassignedPlayers}
-            onPlayerSelect={(player) => handlePlayerSelect("forward-right", player)}
-          />
-        </div>
+      {/* Soft vignette for depth */}
+      <div
+        className="pointer-events-none absolute inset-0"
+        style={{ background: "radial-gradient(120% 80% at 50% 40%, transparent 55%, rgba(0,0,0,0.28))" }}
+      />
 
-        {/* Midfielders (3) */}
-        <div className="grid grid-cols-3 items-center">
-          <PositionDroppable
-            id={`midfield-left-${team}`}
-            player={positions["midfield-left"]}
-            team={team}
-            label={t("positions.midfieldLeft")}
-            onRemove={() => onRemovePlayer("midfield-left")}
-            isActive={activePosition === `midfield-left-${team}`}
-            onClick={() => handlePositionClick(`midfield-left-${team}`)}
-            unassignedPlayers={unassignedPlayers}
-            onPlayerSelect={(player) => handlePlayerSelect("midfield-left", player)}
-          />
-          <PositionDroppable
-            id={`midfield-center-${team}`}
-            player={positions["midfield-center"]}
-            team={team}
-            label={t("positions.midfieldCenter")}
-            onRemove={() => onRemovePlayer("midfield-center")}
-            isActive={activePosition === `midfield-center-${team}`}
-            onClick={() => handlePositionClick(`midfield-center-${team}`)}
-            unassignedPlayers={unassignedPlayers}
-            onPlayerSelect={(player) => handlePlayerSelect("midfield-center", player)}
-          />
-          <PositionDroppable
-            id={`midfield-right-${team}`}
-            player={positions["midfield-right"]}
-            team={team}
-            label={t("positions.midfieldRight")}
-            onRemove={() => onRemovePlayer("midfield-right")}
-            isActive={activePosition === `midfield-right-${team}`}
-            onClick={() => handlePositionClick(`midfield-right-${team}`)}
-            unassignedPlayers={unassignedPlayers}
-            onPlayerSelect={(player) => handlePlayerSelect("midfield-right", player)}
-          />
-        </div>
+      {/* Droppable line strips (tiled top->bottom) */}
+      {BANDS.map((band, i) => (
+        <BandStrip
+          key={band}
+          team={team}
+          band={band}
+          topPct={i * 20}
+          selecting={selecting}
+          empty={shape[band].length === 0}
+          onTapBand={onTapBand}
+        />
+      ))}
 
-        {/* Defenders (3) */}
-        <div className="grid grid-cols-3 items-center">
-          <PositionDroppable
-            id={`defense-left-${team}`}
-            player={positions["defense-left"]}
-            team={team}
-            label={t("positions.defenseLeft")}
-            onRemove={() => onRemovePlayer("defense-left")}
-            isActive={activePosition === `defense-left-${team}`}
-            onClick={() => handlePositionClick(`defense-left-${team}`)}
-            unassignedPlayers={unassignedPlayers}
-            onPlayerSelect={(player) => handlePlayerSelect("defense-left", player)}
-          />
-          <PositionDroppable
-            id={`defense-center-${team}`}
-            player={positions["defense-center"]}
-            team={team}
-            label={t("positions.defenseCenter")}
-            onRemove={() => onRemovePlayer("defense-center")}
-            isActive={activePosition === `defense-center-${team}`}
-            onClick={() => handlePositionClick(`defense-center-${team}`)}
-            unassignedPlayers={unassignedPlayers}
-            onPlayerSelect={(player) => handlePlayerSelect("defense-center", player)}
-          />
-          <PositionDroppable
-            id={`defense-right-${team}`}
-            player={positions["defense-right"]}
-            team={team}
-            label={t("positions.defenseRight")}
-            onRemove={() => onRemovePlayer("defense-right")}
-            isActive={activePosition === `defense-right-${team}`}
-            onClick={() => handlePositionClick(`defense-right-${team}`)}
-            unassignedPlayers={unassignedPlayers}
-            onPlayerSelect={(player) => handlePlayerSelect("defense-right", player)}
-          />
-        </div>
+      {/* Cards layer (positioned; only the cards capture pointer events) */}
+      <div className="pointer-events-none absolute inset-0">
+        {BANDS.map((band) => {
+          const arr = shape[band]
+          const n = arr.length
+          return arr.map((player, idx) => (
+            <FieldCard
+              key={player.id}
+              player={player}
+              ring={ring}
+              leftPct={bandX(idx, n)}
+              topPct={BAND_Y[band]}
+              onRemove={() => onRemovePlayer(player.id)}
+            />
+          ))
+        })}
       </div>
     </div>
   )
 }
 
-interface PositionDroppableProps {
-  id: string
-  player: PlayerWithDetails | null
-  team: "A" | "B"
-  label: string
-  onRemove: () => void
-  isActive: boolean
-  onClick: () => void
-  unassignedPlayers: PlayerWithDetails[]
-  onPlayerSelect: (player: PlayerWithDetails) => void
+interface BandStripProps {
+  team: TeamSide
+  band: BandId
+  topPct: number
+  selecting?: boolean
+  empty: boolean
+  onTapBand?: (band: BandId) => void
 }
 
-function PositionDroppable({
-  id,
-  player,
-  team,
-  label,
-  onRemove,
-  isActive,
-  onClick,
-  unassignedPlayers,
-  onPlayerSelect,
-}: PositionDroppableProps) {
-  const { t } = useTranslation()
-  const { setNodeRef, isOver } = useDroppable({
-    id,
-  })
+function BandStrip({ team, band, topPct, selecting, empty, onTapBand }: BandStripProps) {
+  const { setNodeRef, isOver } = useDroppable({ id: `${team}:${band}` })
 
   return (
-    <div ref={setNodeRef} className="flex justify-center items-center h-full relative px-0.5">
-      <div
-        className={`w-full h-full flex items-center justify-center transition-colors relative rounded-md ${
-          player ? "" : isOver ? "bg-white/25" : ""
-        }`}
-      >
-        {player ? (
-          // Constrain the card so the pitch shows through and the formation reads as a formation.
-          <div className="w-full max-w-[68px] sm:max-w-[84px]">
-            <PositionedPlayer player={player} team={team} onRemove={onRemove} />
-          </div>
-        ) : (
-          <div
-            onClick={onClick}
-            className={`w-full max-w-[60px] sm:max-w-[72px] aspect-[3/4] rounded-lg border-2 border-dashed ${
-              isActive ? "border-white bg-white/25" : isOver ? "border-white bg-white/15" : "border-white/40"
-            } flex flex-col items-center justify-center cursor-pointer hover:bg-white/15 transition-colors text-center px-1`}
-          >
-            <span className="text-[10px] leading-tight text-white/90">{label}</span>
-            <ChevronDown className="h-3 w-3 text-white/70 mt-0.5" />
-          </div>
-        )}
-
-        {/* Player selection popup */}
-        {isActive && !player && unassignedPlayers.length > 0 && (
-          <div className="absolute inset-0 bg-white/95 dark:bg-gray-800/95 rounded-md shadow-lg z-10">
-            <div className="p-2 max-h-48 overflow-y-auto">
-              <div className="text-xs font-medium mb-2 text-gray-700 dark:text-gray-300 flex justify-between items-center">
-                <span>{t("positions.selectPlayer")}</span>
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation()
-                    onClick() // Close the dropdown
-                  }}
-                  className="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
-                >
-                  <X className="h-3 w-3" />
-                </button>
-              </div>
-              {unassignedPlayers.map((unassignedPlayer) => (
-                <div
-                  key={unassignedPlayer.id}
-                  onClick={() => onPlayerSelect(unassignedPlayer)}
-                  className="p-1.5 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-sm cursor-pointer text-xs mb-1 last:mb-0"
-                >
-                  <div className="flex items-center">
-                    <div className="w-7 mr-2 flex-shrink-0">
-                      <FifaCard user={unassignedPlayer} compact className="pointer-events-none" />
-                    </div>
-                    <span className="font-medium dark:text-white truncate">{unassignedPlayer.name}</span>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-      </div>
+    <div
+      ref={setNodeRef}
+      onClick={() => onTapBand?.(band)}
+      className={`absolute left-0 right-0 transition-colors ${
+        isOver ? "bg-white/20" : selecting ? "bg-white/[0.06]" : ""
+      }`}
+      style={{ top: `${topPct}%`, height: "20%" }}
+    >
+      <span className="pointer-events-none absolute left-1.5 top-1 select-none text-[9px] font-semibold tracking-wider text-white/35">
+        {BAND_LABEL[band]}
+      </span>
+      {selecting && empty && (
+        <span className="pointer-events-none absolute inset-0 flex items-center justify-center text-[10px] font-medium text-white/45">
+          +
+        </span>
+      )}
     </div>
   )
 }
 
-interface PositionedPlayerProps {
+interface FieldCardProps {
   player: PlayerWithDetails
-  team: "A" | "B"
+  ring: string
+  leftPct: number
+  topPct: number
   onRemove: () => void
 }
 
-function PositionedPlayer({ player, team, onRemove }: PositionedPlayerProps) {
-  const { attributes, listeners, setNodeRef, transform } = useDraggable({
+function FieldCard({ player, ring, leftPct, topPct, onRemove }: FieldCardProps) {
+  const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
     id: player.id,
-    data: {
-      player,
-      fromPosition: true,
-    },
+    data: { player },
   })
 
-  const style = {
-    transform: CSS.Translate.toString(transform),
+  const style: CSSProperties = {
+    left: `${leftPct}%`,
+    top: `${topPct}%`,
+    transform: `translate(-50%, -50%) ${CSS.Translate.toString(transform) ?? ""}`,
     touchAction: "none",
+    transition: isDragging ? undefined : "left 0.18s ease, top 0.18s ease",
+    zIndex: isDragging ? 50 : 10,
+    opacity: isDragging ? 0.9 : 1,
   }
 
   return (
-    <div // This is the draggable element, fills the slot.
+    <div
       ref={setNodeRef}
       style={style}
-      {...listeners}
-      {...attributes}
-      className={`
-        w-full cursor-grab active:cursor-grabbing
-        relative rounded-lg ring-2 ${team === "A" ? "ring-blue-400 dark:ring-blue-500" : "ring-red-400 dark:ring-red-500"}
-        shadow-lg
-      `}
+      className="pointer-events-auto absolute w-[17%] min-w-[46px] max-w-[64px]"
     >
-      <FifaCard user={player} compact showName className="pointer-events-none rounded-lg overflow-hidden" />
+      <div
+        {...listeners}
+        {...attributes}
+        className={`relative cursor-grab rounded-lg shadow-lg ring-2 active:cursor-grabbing ${ring}`}
+      >
+        <FifaCard user={player} compact showName className="pointer-events-none overflow-hidden rounded-lg" />
+      </div>
       <button
+        onPointerDown={(e) => e.stopPropagation()}
         onClick={(e) => {
           e.stopPropagation()
           onRemove()
         }}
-        className="absolute -top-1.5 -right-1.5 bg-white dark:bg-gray-800 rounded-full p-0.5 shadow-md hover:bg-gray-100 dark:hover:bg-gray-700 z-10 border border-black/10"
+        className="absolute -right-1.5 -top-1.5 z-10 rounded-full border border-black/10 bg-white p-0.5 shadow-md hover:bg-gray-100 dark:bg-gray-800 dark:hover:bg-gray-700"
+        aria-label="remove"
       >
         <X className="h-3 w-3 text-gray-700 dark:text-gray-300" />
       </button>

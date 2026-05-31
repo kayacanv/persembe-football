@@ -129,16 +129,41 @@ const FifaCard = forwardRef<HTMLDivElement, FifaCardProps>(function FifaCard(
           />
         </div>
 
+        {/* --- Jersey / squad number (top-right, full card only) ---
+            On compact field cards it lives in the bottom identity row instead, so it
+            never collides with the remove (✕) button at the card's top-right corner. */}
+        {!compact && card.jerseyNumber != null && (
+          <div className="absolute text-right" style={{ top: "5%", right: "7%", lineHeight: 1 }}>
+            <div style={{ fontSize: "8.5cqw", fontWeight: 800, letterSpacing: "-0.02em" }}>
+              {card.jerseyNumber}
+            </div>
+            <div style={{ fontSize: "3cqw", fontWeight: 700, color: theme.accent, marginTop: "0.4cqw" }}>
+              NO.
+            </div>
+          </div>
+        )}
+
+        {/* Subtle diagonal sheen for a more premium, less-flat card. */}
+        <div
+          className="pointer-events-none absolute inset-0"
+          style={{
+            background:
+              "linear-gradient(125deg, rgba(255,255,255,0.16) 0%, rgba(255,255,255,0) 38%, rgba(0,0,0,0.10) 100%)",
+          }}
+        />
+
         {compact && showName && (
-          // Compact name band: identifies the player on the pitch / in chips.
+          // Compact bottom band: name + nation flag + club badge, so the field card
+          // reads like a real FIFA card and the player is identifiable on the pitch.
           <div
-            className="absolute left-0 right-0 bottom-0 text-center"
+            className="absolute left-0 right-0 bottom-0"
             style={{
-              padding: "2cqw 2cqw 3cqw",
-              background: "linear-gradient(to top, rgba(0,0,0,0.55), transparent)",
+              padding: "6cqw 2cqw 2.5cqw",
+              background: "linear-gradient(to top, rgba(0,0,0,0.72) 55%, transparent)",
             }}
           >
             <div
+              className="text-center"
               style={{
                 fontSize: "9cqw",
                 fontWeight: 800,
@@ -147,11 +172,56 @@ const FifaCard = forwardRef<HTMLDivElement, FifaCardProps>(function FifaCard(
                 whiteSpace: "nowrap",
                 overflow: "hidden",
                 textOverflow: "ellipsis",
-                textShadow: "0 0.4cqw 1cqw rgba(0,0,0,0.6)",
+                textShadow: "0 0.4cqw 1cqw rgba(0,0,0,0.7)",
+                color: "#fff",
               }}
             >
               {card.name}
             </div>
+            {(card.jerseyNumber != null || card.nation || card.clubBadgeUrl) && (
+              <div
+                className="flex items-center justify-center"
+                style={{ gap: "2.6cqw", marginTop: "1.5cqw" }}
+              >
+                {card.jerseyNumber != null && (
+                  <span
+                    style={{
+                      fontSize: "7cqw",
+                      fontWeight: 800,
+                      color: "#fff",
+                      lineHeight: 1,
+                      textShadow: "0 0.3cqw 0.8cqw rgba(0,0,0,0.7)",
+                    }}
+                  >
+                    {card.jerseyNumber}
+                  </span>
+                )}
+                {card.nation && (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={`/flags/${card.nation}.svg`}
+                    alt={card.nation}
+                    crossOrigin="anonymous"
+                    style={{ height: "8cqw", borderRadius: "1cqw", boxShadow: "0 0.3cqw 0.8cqw rgba(0,0,0,0.5)" }}
+                    onError={(e) => {
+                      ;(e.currentTarget as HTMLImageElement).style.display = "none"
+                    }}
+                  />
+                )}
+                {card.clubBadgeUrl && (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={card.clubBadgeUrl}
+                    alt="club"
+                    crossOrigin="anonymous"
+                    style={{ height: "9cqw", objectFit: "contain", filter: "drop-shadow(0 0.3cqw 0.6cqw rgba(0,0,0,0.5))" }}
+                    onError={(e) => {
+                      ;(e.currentTarget as HTMLImageElement).style.display = "none"
+                    }}
+                  />
+                )}
+              </div>
+            )}
           </div>
         )}
 
