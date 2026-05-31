@@ -1636,6 +1636,22 @@ export default function MatchPage({ params }: { params: { id: string } }) {
                       Ödemeniz otomatik olarak onaylanır.
                     </p>
                     <p className="text-lg font-bold text-green-600 mt-2">£{match?.price.toFixed(2)}</p>
+                    <Button
+                      onClick={() =>
+                        window.open(
+                          `https://settleup.starlingbank.com/kayacan-vesek-6f4fc7?amount=${match?.price.toFixed(2) ?? ""}`,
+                          "_blank",
+                          "noopener,noreferrer",
+                        )
+                      }
+                      className="w-full mt-3 bg-blue-600 hover:bg-blue-700"
+                    >
+                      <ExternalLink className="mr-2 h-4 w-4" /> Starling ile Öde
+                    </Button>
+                    <p className="text-xs text-muted-foreground mt-2">
+                      Hızlı ödeme için yukarıdaki butonu kullanın. Ödemenizin otomatik onaylanması için
+                      aşağıdaki <span className="font-semibold">havale + açıklama</span> yöntemini tercih edin.
+                    </p>
                   </div>
 
                   {(() => {
