@@ -1637,18 +1637,13 @@ export default function MatchPage({ params }: { params: { id: string } }) {
                     </p>
                     <p className="text-lg font-bold text-green-600 mt-2">£{match?.price.toFixed(2)}</p>
                     <Button
-                      onClick={() => {
-                        const amount = match?.price.toFixed(2) ?? ""
-                        const ref =
-                          playerToPay && match
-                            ? paymentRef(match.date, playerToPay.match_player_id, playerToPay.name)
-                            : ""
+                      onClick={() =>
                         window.open(
-                          `https://settleup.starlingbank.com/kayacan-vesek-6f4fc7?amount=${amount}&message=${encodeURIComponent(ref)}`,
+                          `https://settleup.starlingbank.com/kayacan-vesek-6f4fc7?amount=${match?.price.toFixed(2) ?? ""}`,
                           "_blank",
                           "noopener,noreferrer",
                         )
-                      }}
+                      }
                       className="w-full mt-3 bg-blue-600 hover:bg-blue-700"
                     >
                       <ExternalLink className="mr-2 h-4 w-4" /> Starling ile Öde
