@@ -61,6 +61,7 @@ import { createCheckoutSession, verifyPaymentStatus, confirmManualPayment } from
 import { updateMatchScore, updateMatchDate } from "@/app/actions/match-actions"
 import { getStripe } from "@/app/lib/stripe"
 import { paymentRef } from "@/app/lib/payment-ref"
+import { MAX_ACTIVE_PLAYERS } from "@/app/lib/constants"
 import { isPlaceholderPhone, samePhone } from "@/app/lib/phone"
 import type { User as UserType } from "@/app/lib/types"
 import { format, formatDistanceToNow } from "date-fns"
@@ -322,7 +323,7 @@ export default function MatchPage({ params }: { params: { id: string } }) {
     const updatedActiveCount = await getActivePlayerCount(matchId)
     setActivePlayerCount(updatedActiveCount)
 
-    const isWaitlisted = updatedActiveCount > 18
+    const isWaitlisted = updatedActiveCount > MAX_ACTIVE_PLAYERS
 
     toast({
       title: t("common.success"),

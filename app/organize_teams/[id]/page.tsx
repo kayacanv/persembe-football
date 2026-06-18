@@ -315,7 +315,7 @@ export default function OrganizeTeamsPage() {
                             isA ? "text-blue-600/70 dark:text-blue-400/70" : "text-red-600/70 dark:text-red-400/70"
                           }`}
                         >
-                          {getTeamPlayers(team).length}/9
+                          {getTeamPlayers(team).length}/8
                         </span>
                         {getTeamPlayers(team).length > 0 && (
                           <button

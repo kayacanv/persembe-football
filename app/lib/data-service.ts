@@ -1,4 +1,5 @@
 import { getSupabaseBrowserClient } from "./supabase"
+import { MAX_ACTIVE_PLAYERS } from "./constants"
 import type { Match, MatchStatus, Position, PlayerWithDetails, Team, PlayerStatus, PlayerRankingStats } from "./types"
 import type { User } from "./types"
 
@@ -186,7 +187,7 @@ export async function createMatch(
   const supabase = getSupabaseBrowserClient()
   const matchData = {
     ...match,
-    price: match.price ?? 7.5, // Default price if not provided
+    price: match.price ?? 10, // Default price if not provided
   }
   const { data, error } = await supabase.from("matches").insert(matchData).select().single()
 
@@ -314,7 +315,7 @@ export async function registerPlayerForMatch(
     return false
   }
 
-  const status = count !== null && count >= 18 ? "waitlist" : "active"
+  const status = count !== null && count >= MAX_ACTIVE_PLAYERS ? "waitlist" : "active"
 
   // Now register the player for the match
   const { error: registerError } = await supabase.from("match_players").insert({
@@ -461,7 +462,7 @@ export function getNextThursday(): string {
 }
 
 // Create a new match for the next Thursday
-export async function createNextThursdayMatch(price = 7.5): Promise<Match | null> {
+export async function createNextThursdayMatch(price = 10): Promise<Match | null> {
   const date = getNextThursday()
   const time = "21:00"
 
