@@ -3,10 +3,19 @@ import { getPlayersForMatch } from "./data-service"
 import type { Match, MvpVoteCount, MvpWinner, VotingWindow } from "./types"
 import { parse } from "date-fns"
 
-// We play Thursday 21:00–22:00. Voting opens at the final whistle and closes when
-// the next weekly match kicks off.
+// We play Thursday 21:00–22:00. Voting opens at the final whistle (22:00) and
+// closes the following Tuesday at the same wall-clock time (21:00).
 const PLAY_DURATION_MS = 60 * 60 * 1000 // 1h: 21:00 -> 22:00 (opens)
-const WEEK_MS = 7 * 24 * 60 * 60 * 1000 // next Thursday 21:00 (closes)
+const VOTING_CLOSE_DAY = 2 // 0=Sun … 2=Tue: voting closes on Tuesday
+
+// First occurrence of `targetDay` strictly after `from`, preserving the local
+// wall-clock time. Using setDate (not raw ms) keeps 21:00 as 21:00 across DST.
+function nextWeekdayAtSameTime(from: Date, targetDay: number): Date {
+  const result = new Date(from)
+  const days = (targetDay - from.getDay() + 7) % 7 || 7
+  result.setDate(result.getDate() + days)
+  return result
+}
 
 const DEVICE_ID_KEY = "halisaha_device_id"
 const votedKey = (matchId: string) => `mvp_voted_${matchId}`
@@ -30,7 +39,7 @@ export function getDeviceId(): string {
 export function getVotingWindow(match: Pick<Match, "date" | "time">): VotingWindow {
   const start = parse(`${match.date} ${match.time}`, "dd.MM.yyyy HH:mm", new Date())
   const openAt = new Date(start.getTime() + PLAY_DURATION_MS)
-  const closeAt = new Date(start.getTime() + WEEK_MS)
+  const closeAt = nextWeekdayAtSameTime(start, VOTING_CLOSE_DAY)
   const now = new Date()
   return {
     openAt,

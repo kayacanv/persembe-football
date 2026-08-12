@@ -41,6 +41,7 @@ async function runSync() {
   const summary = {
     fetched: items.length,
     matched: results.filter((r) => r.status === "matched").length,
+    campaign: results.filter((r) => r.status === "campaign").length,
     unmatched: results.filter((r) => r.status === "unmatched").length,
     skipped: results.filter((r) => r.status === "skipped").length,
   }

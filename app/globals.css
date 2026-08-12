@@ -140,3 +140,95 @@ body {
   background-color: var(--background);
   color: var(--foreground);
 }
+
+/* ---- Kumbara (piggy bank) page animations ---- */
+
+/* The gold "liquid" drifts sideways so the surface never looks frozen. One full
+   wave period is 68 user units; shifting by 136 loops seamlessly. */
+@keyframes piggy-drift {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(-136px);
+  }
+}
+
+/* Tapping the pig makes it wobble like a real one being shaken for change. */
+@keyframes piggy-wobble {
+  0% {
+    transform: rotate(0deg) scale(1);
+  }
+  25% {
+    transform: rotate(-4deg) scale(1.03);
+  }
+  50% {
+    transform: rotate(3deg) scale(1.01);
+  }
+  75% {
+    transform: rotate(-2deg) scale(1.02);
+  }
+  100% {
+    transform: rotate(0deg) scale(1);
+  }
+}
+
+/* A coin falls into the slot when money arrives (or when you poke the pig). */
+@keyframes piggy-coin-drop {
+  0% {
+    transform: translateY(-46px) rotate(-25deg);
+    opacity: 0;
+  }
+  25% {
+    opacity: 1;
+  }
+  75% {
+    opacity: 1;
+  }
+  100% {
+    transform: translateY(6px) rotate(15deg);
+    opacity: 0;
+  }
+}
+
+@keyframes piggy-confetti-fall {
+  from {
+    transform: translateY(-10vh) rotate(0deg);
+    opacity: 1;
+  }
+  to {
+    transform: translateY(105vh) rotate(720deg);
+    opacity: 0;
+  }
+}
+
+.piggy-wave {
+  animation: piggy-drift 7s linear infinite;
+}
+
+.piggy-wobble {
+  animation: piggy-wobble 700ms ease-in-out;
+}
+
+.piggy-coin {
+  animation: piggy-coin-drop 900ms ease-in forwards;
+}
+
+.piggy-confetti-piece {
+  position: absolute;
+  top: 0;
+  width: 8px;
+  height: 14px;
+  border-radius: 2px;
+  animation: piggy-confetti-fall linear forwards;
+}
+
+/* Respect users who don't want motion: keep the fill level, drop the movement. */
+@media (prefers-reduced-motion: reduce) {
+  .piggy-wave,
+  .piggy-wobble,
+  .piggy-coin,
+  .piggy-confetti-piece {
+    animation: none;
+  }
+}

@@ -8,7 +8,19 @@ import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Calendar, Clock, ArrowRight, Plus, Users, BarChart3, Loader2, AlertCircle, Star, Phone } from "lucide-react"
+import {
+  Calendar,
+  Clock,
+  ArrowRight,
+  Plus,
+  Users,
+  BarChart3,
+  Loader2,
+  AlertCircle,
+  Star,
+  Phone,
+  PiggyBank as PiggyIcon,
+} from "lucide-react"
 import {
   getActiveMatch,
   getPastMatches,
@@ -18,6 +30,8 @@ import {
   getUnpaidPlayerCount, // Import new function
 } from "./lib/data-service"
 import { getMvpWinnersForMatches, getVotingWindow } from "./lib/mvp-service"
+import { getPiggyTotals, formatPounds } from "./lib/piggy-service"
+import { ACTIVE_PIGGY } from "./config/piggy"
 import type { Match, MvpWinner, PlayerRankingStats } from "./lib/types"
 import { toast } from "@/components/ui/use-toast"
 import { getSupabaseBrowserClient } from "./lib/supabase-browser"
@@ -47,10 +61,11 @@ export default function HomePage() {
   const [loadingRankings, setLoadingRankings] = useState(true)
   const [unpaidCounts, setUnpaidCounts] = useState<Record<string, number>>({})
   const [mvpWinners, setMvpWinners] = useState<Record<string, MvpWinner>>({})
+  const [piggy, setPiggy] = useState<{ remaining: number; progress: number; reached: boolean } | null>(null)
 
   // Add state for price input and dialog
   const [createMatchDialogOpen, setCreateMatchDialogOpen] = useState(false)
-  const [matchPrice, setMatchPrice] = useState(7.5)
+  const [matchPrice, setMatchPrice] = useState(10)
   const [creatingMatch, setCreatingMatch] = useState(false)
 
   const searchParams = useSearchParams()
@@ -90,6 +105,19 @@ export default function HomePage() {
         setActiveMatch(active)
         setPastMatches(past)
         setPlayerRankings(rankings)
+
+        // Kumbara banner. Non-blocking: a failure here must not break the home page.
+        if (ACTIVE_PIGGY.active) {
+          getPiggyTotals()
+            .then((totals) =>
+              setPiggy({
+                remaining: totals.remainingMinor,
+                progress: totals.progress,
+                reached: totals.reached,
+              }),
+            )
+            .catch((err) => console.error("Piggy totals failed:", err))
+        }
 
         const allMatches = [active, ...past].filter(Boolean) as Match[]
         const counts: Record<string, number> = {}
@@ -161,6 +189,32 @@ export default function HomePage() {
         <h1 className="text-2xl font-bold">Perşembe Halısaha</h1>
         <LanguageSwitcher />
       </div>
+
+      {/* Kumbara — shown above the tabs so an open whip-round is impossible to miss. */}
+      {piggy && (
+        <Link href="/kumbara" className="block mb-6">
+          <Card className="border-pink-300 bg-gradient-to-r from-pink-50 to-amber-50 transition-colors hover:border-pink-400 dark:border-pink-800 dark:from-pink-950/40 dark:to-amber-950/20">
+            <CardContent className="flex items-center gap-3 p-4">
+              <PiggyIcon className="h-8 w-8 shrink-0 text-pink-500" />
+              <div className="min-w-0 flex-1">
+                <p className="font-semibold">{t("piggy.bannerTitle")}</p>
+                <p className="truncate text-sm text-muted-foreground">
+                  {piggy.reached
+                    ? t("piggy.bannerDone")
+                    : t("piggy.bannerRemaining", { amount: formatPounds(piggy.remaining).replace("£", "") })}
+                </p>
+                <div className="mt-2 h-2 w-full overflow-hidden rounded-full bg-pink-200 dark:bg-pink-950">
+                  <div
+                    className="h-full rounded-full bg-gradient-to-r from-amber-300 to-amber-500 transition-[width] duration-700"
+                    style={{ width: `${piggy.progress * 100}%` }}
+                  />
+                </div>
+              </div>
+              <ArrowRight className="h-5 w-5 shrink-0 text-muted-foreground" />
+            </CardContent>
+          </Card>
+        </Link>
+      )}
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
         <TabsList className="grid w-full grid-cols-3 mb-6">
@@ -401,7 +455,7 @@ export default function HomePage() {
                 min="0"
                 value={matchPrice}
                 onChange={(e) => setMatchPrice(Number.parseFloat(e.target.value) || 0)}
-                placeholder="7.50"
+                placeholder="10.00"
               />
               <p className="text-xs text-muted-foreground">{t("home.priceHelp")}</p>
             </div>

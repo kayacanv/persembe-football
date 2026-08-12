@@ -30,11 +30,11 @@ export default function TeamPowerComparison({ teamAPlayers, teamBPlayers }: Team
   const teamBAverage = teamBPlayers.length > 0 ? teamBPower / teamBPlayers.length : 0
 
   // Calculate the position of the indicator (0-100%)
-  // 50% means equal power, <50% means Team A stronger, >50% means Team B stronger
+  // 50% means equal power, <50% means White Team stronger, >50% means Black Team stronger
   const getIndicatorPosition = () => {
     if (totalPower === 0) return 50 // Center if no players
 
-    // Calculate the ratio of Team B power to total power
+    // Calculate the ratio of Black Team power to total power
     const teamBRatio = teamBPower / totalPower
       const adjusted = 1 / (1 + Math.exp(-6 * (teamBRatio - 0.5)));
     return adjusted * 100;
@@ -67,7 +67,7 @@ export default function TeamPowerComparison({ teamAPlayers, teamBPlayers }: Team
           {/* Team labels and power values */}
           <div className="flex justify-between items-center mb-3">
             <div className="text-center">
-              <div className="text-sm font-medium text-blue-700 dark:text-blue-300">{t("team.a")}</div>
+              <div className="text-sm font-medium text-zinc-700 dark:text-zinc-200">{t("team.a")}</div>
               <div className="text-xs text-muted-foreground">{t("team.playerCount", { count: teamAPlayers.length })}</div>
             </div>
 
@@ -76,7 +76,7 @@ export default function TeamPowerComparison({ teamAPlayers, teamBPlayers }: Team
             </div>
 
             <div className="text-center">
-              <div className="text-sm font-medium text-red-700 dark:text-red-300">{t("team.b")}</div>
+              <div className="text-sm font-medium text-zinc-900 dark:text-zinc-100">{t("team.b")}</div>
               <div className="text-xs text-muted-foreground">{t("team.playerCount", { count: teamBPlayers.length })}</div>
             </div>
           </div>
@@ -85,19 +85,19 @@ export default function TeamPowerComparison({ teamAPlayers, teamBPlayers }: Team
           <div className="relative">
             {/* Background bar */}
             <div className="w-full h-6 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
-              {/* Team A side (left) */}
-              <div className="absolute top-0 left-0 h-full bg-blue-500 opacity-30" style={{ width: "50%" }}></div>
+              {/* White Team side (left) */}
+              <div className="absolute top-0 left-0 h-full bg-zinc-100" style={{ width: "50%" }}></div>
 
-              {/* Team B side (right) */}
-              <div className="absolute top-0 right-0 h-full bg-red-500 opacity-30" style={{ width: "50%" }}></div>
+              {/* Black Team side (right) */}
+              <div className="absolute top-0 right-0 h-full bg-zinc-800" style={{ width: "50%" }}></div>
 
               {/* Center divider */}
               <div className="absolute top-0 left-1/2 w-0.5 h-full bg-gray-400 dark:bg-gray-500 transform -translate-x-0.5"></div>
 
               {/* Power indicator */}
               <div
-                className={`absolute top-1/2 w-4 h-4 rounded-full border-2 border-white shadow-lg transform -translate-y-1/2 -translate-x-1/2 transition-all duration-500 ${
-                  strongerTeam === "A" ? "bg-blue-600" : strongerTeam === "B" ? "bg-red-600" : "bg-gray-600"
+                className={`absolute top-1/2 w-4 h-4 rounded-full border-2 border-zinc-400 shadow-lg transform -translate-y-1/2 -translate-x-1/2 transition-all duration-500 ${
+                  strongerTeam === "A" ? "bg-white" : strongerTeam === "B" ? "bg-zinc-900" : "bg-gray-500"
                 }`}
                 style={{ left: `${indicatorPosition}%` }}
               ></div>

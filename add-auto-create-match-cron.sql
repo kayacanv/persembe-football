@@ -65,7 +65,7 @@ begin
   end if;
 
   insert into matches (date, time, status, price)
-  values (target_text, '21:00', 'registering', coalesce(last_match.price, 7.5));
+  values (target_text, '21:00', 'registering', coalesce(last_match.price, 10));
 
   return 'created match for ' || target_text;
 exception

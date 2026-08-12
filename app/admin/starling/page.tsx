@@ -11,13 +11,14 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import { Loader2, Landmark } from "lucide-react"
+import { Loader2, Landmark, PiggyBank } from "lucide-react"
 import { toast } from "@/components/ui/use-toast"
 import { Toaster } from "@/components/ui/toaster"
 import {
   listUnmatchedBankPayments,
   listUnpaidPlayers,
   linkBankPayment,
+  assignBankPaymentToPiggy,
   type UnmatchedPayment,
   type UnpaidPlayerOption,
 } from "@/app/actions/starling-actions"
@@ -34,6 +35,7 @@ export default function StarlingReconcilePage() {
   const [players, setPlayers] = useState<UnpaidPlayerOption[]>([])
   const [selected, setSelected] = useState<Record<string, string>>({})
   const [linking, setLinking] = useState<string | null>(null)
+  const [assigning, setAssigning] = useState<string | null>(null)
 
   const load = async () => {
     setLoading(true)
@@ -66,6 +68,18 @@ export default function StarlingReconcilePage() {
     setLinking(null)
     if (success) {
       toast({ title: t("admin.linked"), description: t("admin.linkSuccess") })
+      await load()
+    } else {
+      toast({ title: t("common.error"), description: error || t("admin.linkFailed"), variant: "destructive" })
+    }
+  }
+
+  const handleAssignToPiggy = async (feedItemUid: string) => {
+    setAssigning(feedItemUid)
+    const { success, error } = await assignBankPaymentToPiggy(feedItemUid)
+    setAssigning(null)
+    if (success) {
+      toast({ title: t("admin.countedAsPiggy"), description: t("admin.countedAsPiggyDesc") })
       await load()
     } else {
       toast({ title: t("common.error"), description: error || t("admin.linkFailed"), variant: "destructive" })
@@ -145,6 +159,21 @@ export default function StarlingReconcilePage() {
                   )}
                 </Button>
               </div>
+              {/* Fallback for money sent without (or with a mistyped) campaign reference. */}
+              <Button
+                variant="outline"
+                className="w-full"
+                onClick={() => handleAssignToPiggy(p.feed_item_uid)}
+                disabled={assigning === p.feed_item_uid}
+              >
+                {assigning === p.feed_item_uid ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <>
+                    <PiggyBank className="mr-2 h-4 w-4" /> {t("admin.countAsPiggy")}
+                  </>
+                )}
+              </Button>
             </CardContent>
           </Card>
         ))

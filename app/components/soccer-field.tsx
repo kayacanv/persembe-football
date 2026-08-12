@@ -34,7 +34,7 @@ export default function FormationPitch({
   onTapBand,
   selecting,
 }: FormationPitchProps) {
-  const ring = team === "A" ? "ring-blue-400 dark:ring-blue-500" : "ring-red-400 dark:ring-red-500"
+  const ring = team === "A" ? "ring-zinc-200 dark:ring-zinc-100" : "ring-zinc-800 dark:ring-zinc-900"
 
   return (
     <div

@@ -457,7 +457,7 @@ export default function PlayerProfilePage() {
                       </div>
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-6">
                         <div className="border rounded-lg p-4">
-                          <div className="text-sm font-medium text-blue-600 mb-2">{t("team.a")}</div>
+                          <div className="text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-2">{t("team.a")}</div>
                           <div className="flex justify-between text-sm mb-1">
                             <span className="text-muted-foreground">{t("stats.matchesColon")}</span>
                             <span>{playerStats.teamAMatches}</span>
@@ -476,7 +476,7 @@ export default function PlayerProfilePage() {
                           </div>
                         </div>
                         <div className="border rounded-lg p-4">
-                          <div className="text-sm font-medium text-red-600 mb-2">{t("team.b")}</div>
+                          <div className="text-sm font-medium text-zinc-900 dark:text-zinc-100 mb-2">{t("team.b")}</div>
                           <div className="flex justify-between text-sm mb-1">
                             <span className="text-muted-foreground">{t("stats.matchesColon")}</span>
                             <span>{playerStats.teamBMatches}</span>
@@ -533,8 +533,8 @@ export default function PlayerProfilePage() {
                                 variant="outline"
                                 className={
                                   match.team === "A"
-                                    ? "bg-blue-50 text-blue-700 border-blue-200"
-                                    : "bg-red-50 text-red-700 border-red-200"
+                                    ? "bg-zinc-100 text-zinc-800 border-zinc-300"
+                                    : "bg-zinc-900 text-zinc-100 border-zinc-700"
                                 }
                               >
                                 {match.team === "A" ? t("team.a") : t("team.b")}

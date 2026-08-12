@@ -1,6 +1,7 @@
 "use server"
 
 import { createServerClient } from "../lib/supabase"
+import { recordPiggyContribution } from "../lib/starling-match"
 
 export type UnmatchedPayment = {
   id: string
@@ -64,6 +65,39 @@ export async function listUnpaidPlayers(): Promise<UnpaidPlayerOption[]> {
       price: match?.price ?? 0,
     }
   })
+}
+
+// Count an unmatched payment as a kumbara contribution — the fallback for when
+// someone transfers money without the campaign reference (or misspells it).
+export async function assignBankPaymentToPiggy(feedItemUid: string) {
+  const supabase = createServerClient()
+  if (!supabase) return { success: false, error: "Database connection failed" }
+
+  const { data, error } = await supabase
+    .from("bank_payments")
+    .select("feed_item_uid, amount_minor, currency, direction, reference, counterparty_name, transaction_time")
+    .eq("provider", "starling")
+    .eq("feed_item_uid", feedItemUid)
+    .single()
+
+  if (error || !data) return { success: false, error: error?.message ?? "Payment not found" }
+
+  const result = await recordPiggyContribution(supabase, {
+    feedItemUid: data.feed_item_uid,
+    categoryUid: "",
+    amount: { currency: data.currency, minorUnits: data.amount_minor },
+    direction: (data.direction as "IN" | "OUT") ?? "IN",
+    status: "SETTLED",
+    source: "ADMIN_ASSIGNED",
+    reference: data.reference ?? undefined,
+    counterPartyName: data.counterparty_name ?? undefined,
+    transactionTime: data.transaction_time,
+  })
+
+  if (result.status !== "campaign") {
+    return { success: false, error: result.status === "skipped" ? result.reason : "Could not record" }
+  }
+  return { success: true }
 }
 
 // Manually link an unmatched payment to a player (admin reconcile fallback).

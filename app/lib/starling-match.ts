@@ -7,10 +7,12 @@
 import type { SupabaseClient } from "@supabase/supabase-js"
 import type { StarlingFeedItem } from "./starling-server"
 import { normalizeRef, paymentRef } from "./payment-ref"
+import { ACTIVE_PIGGY, isPiggyReference } from "@/app/config/piggy"
 
 export type ProcessResult =
   | { status: "skipped"; reason: string; feedItemUid: string }
   | { status: "matched"; matchPlayerId: string; feedItemUid: string }
+  | { status: "campaign"; campaign: string; feedItemUid: string }
   | { status: "unmatched"; reason: string; feedItemUid: string }
 
 type UnpaidPlayerRow = {
@@ -29,6 +31,43 @@ function matchOf(row: UnpaidPlayerRow): { date: string; price: number } | null {
 function nameOf(row: UnpaidPlayerRow): string {
   const u = Array.isArray(row.users) ? row.users[0] : row.users
   return u?.name ?? ""
+}
+
+// Record an incoming transfer as a kumbara (piggy bank) contribution and take the
+// bank payment out of the admin "unmatched" queue. Idempotent via the unique
+// (source, external_id) index, so webhook + cron redelivery can't double-count.
+// The payer's name comes straight from the bank feed — there is nothing to type.
+export async function recordPiggyContribution(
+  supabase: SupabaseClient,
+  item: StarlingFeedItem,
+  campaignSlug: string = ACTIVE_PIGGY.slug,
+): Promise<ProcessResult> {
+  const feedItemUid = item.feedItemUid
+
+  const { error: insertErr } = await supabase.from("piggy_contributions").upsert(
+    {
+      campaign: campaignSlug,
+      source: "starling",
+      external_id: feedItemUid,
+      amount_minor: item.amount.minorUnits,
+      currency: item.amount.currency,
+      display_name: item.counterPartyName ?? null,
+      paid_at: item.transactionTime,
+    },
+    { onConflict: "source,external_id", ignoreDuplicates: true },
+  )
+
+  if (insertErr) {
+    return { status: "skipped", reason: `piggy insert failed: ${insertErr.message}`, feedItemUid }
+  }
+
+  await supabase
+    .from("bank_payments")
+    .update({ match_status: "campaign" })
+    .eq("provider", "starling")
+    .eq("feed_item_uid", feedItemUid)
+
+  return { status: "campaign", campaign: campaignSlug, feedItemUid }
 }
 
 // Process a single incoming feed item. Only meaningful for IN/SETTLED items, but
@@ -70,8 +109,8 @@ export async function processFeedItem(
     .eq("feed_item_uid", feedItemUid)
     .single()
 
-  if (existing?.match_status === "matched") {
-    return { status: "skipped", reason: "already matched", feedItemUid }
+  if (existing?.match_status === "matched" || existing?.match_status === "campaign") {
+    return { status: "skipped", reason: `already ${existing.match_status}`, feedItemUid }
   }
 
   // Only auto-match settled incoming money.
@@ -105,6 +144,14 @@ export async function processFeedItem(
   })
 
   if (candidates.length !== 1) {
+    // No single player owns this money. Before giving up, see whether it is a
+    // kumbara contribution — that reference is a plain campaign code with no
+    // player and no expected amount, so it is checked LAST: a payment that
+    // deterministically matches a player must never be diverted to the campaign.
+    if (isPiggyReference(item.reference)) {
+      return recordPiggyContribution(supabase, item)
+    }
+
     return {
       status: "unmatched",
       reason: candidates.length === 0 ? "no code+amount match" : "ambiguous (multiple candidates)",

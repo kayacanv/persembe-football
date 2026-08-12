@@ -289,12 +289,12 @@ export default function OrganizeTeamsPage() {
               return (
                 <Card
                   key={team}
-                  className={`overflow-hidden ${isA ? "border-blue-200 dark:border-blue-900" : "border-red-200 dark:border-red-900"}`}
+                  className={`overflow-hidden ${isA ? "border-zinc-300 dark:border-zinc-700" : "border-zinc-500 dark:border-zinc-600"}`}
                 >
-                  <CardHeader className={`py-3 ${isA ? "bg-blue-50 dark:bg-blue-950/50" : "bg-red-50 dark:bg-red-950/50"}`}>
+                  <CardHeader className={`py-3 ${isA ? "bg-zinc-50 dark:bg-zinc-900/50" : "bg-zinc-800 dark:bg-zinc-800"}`}>
                     <CardTitle
                       className={`text-base flex items-center justify-between ${
-                        isA ? "text-blue-700 dark:text-blue-300" : "text-red-700 dark:text-red-300"
+                        isA ? "text-zinc-700 dark:text-zinc-200" : "text-zinc-100"
                       }`}
                     >
                       <span className="flex items-center gap-2">
@@ -302,8 +302,8 @@ export default function OrganizeTeamsPage() {
                         <span
                           className={`rounded-md px-1.5 py-0.5 text-[11px] font-semibold tabular-nums ${
                             isA
-                              ? "bg-blue-100 text-blue-700 dark:bg-blue-900/60 dark:text-blue-200"
-                              : "bg-red-100 text-red-700 dark:bg-red-900/60 dark:text-red-200"
+                              ? "bg-zinc-100 text-zinc-800 dark:bg-zinc-800/60 dark:text-zinc-100"
+                              : "bg-zinc-900 text-zinc-100 dark:bg-zinc-900 dark:text-zinc-100"
                           }`}
                         >
                           {formationString(teams[team])}
@@ -312,7 +312,7 @@ export default function OrganizeTeamsPage() {
                       <span className="flex items-center gap-2">
                         <span
                           className={`text-xs font-medium ${
-                            isA ? "text-blue-600/70 dark:text-blue-400/70" : "text-red-600/70 dark:text-red-400/70"
+                            isA ? "text-zinc-600/70 dark:text-zinc-400/70" : "text-zinc-300/80 dark:text-zinc-300/80"
                           }`}
                         >
                           {getTeamPlayers(team).length}/8
