@@ -29,6 +29,7 @@ import {
   Calendar,
   Landmark,
   Copy,
+  PoundSterling,
 } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { toast } from "@/components/ui/use-toast"
@@ -58,7 +59,7 @@ import {
 } from "@/app/lib/data-service"
 import Link from "next/link"
 import { createCheckoutSession, verifyPaymentStatus, confirmManualPayment } from "@/app/actions/stripe-actions"
-import { updateMatchScore, updateMatchDate } from "@/app/actions/match-actions"
+import { updateMatchScore, updateMatchDate, updateMatchTime, updateMatchPrice } from "@/app/actions/match-actions"
 import { getStripe } from "@/app/lib/stripe"
 import { paymentRef } from "@/app/lib/payment-ref"
 import { MAX_ACTIVE_PLAYERS } from "@/app/lib/constants"
@@ -117,6 +118,16 @@ export default function MatchPage({ params }: { params: { id: string } }) {
   const [isEditingDate, setIsEditingDate] = useState(false)
   const [editedDate, setEditedDate] = useState<Date | undefined>(undefined)
   const [savingDate, setSavingDate] = useState(false)
+
+  // Time edit state
+  const [isEditingTime, setIsEditingTime] = useState(false)
+  const [editedTime, setEditedTime] = useState("")
+  const [savingTime, setSavingTime] = useState(false)
+
+  // Price edit state
+  const [isEditingPrice, setIsEditingPrice] = useState(false)
+  const [editedPrice, setEditedPrice] = useState("")
+  const [savingPrice, setSavingPrice] = useState(false)
 
   // Registration state
   const [name, setName] = useState("")
@@ -430,6 +441,91 @@ export default function MatchPage({ params }: { params: { id: string } }) {
       })
     } finally {
       setSavingDate(false)
+    }
+  }
+
+  // Handle time update
+  const handleTimeUpdate = async () => {
+    const time = editedTime.trim()
+    if (!/^([01]\d|2[0-3]):[0-5]\d$/.test(time)) {
+      toast({
+        title: t("common.error"),
+        description: t("match.invalidTime"),
+        variant: "destructive",
+      })
+      return
+    }
+
+    try {
+      setSavingTime(true)
+      const result = await updateMatchTime(matchId, time)
+
+      if (result.success) {
+        setMatch((prev) => (prev ? { ...prev, time } : null))
+        setIsEditingTime(false)
+        toast({
+          title: t("common.success"),
+          description: t("match.timeUpdated"),
+        })
+      } else {
+        toast({
+          title: t("common.error"),
+          description: result.error || t("match.timeUpdateError"),
+          variant: "destructive",
+        })
+      }
+    } catch (error) {
+      console.error("Error updating time:", error)
+      toast({
+        title: t("common.error"),
+        description: t("match.timeUpdateError"),
+        variant: "destructive",
+      })
+    } finally {
+      setSavingTime(false)
+    }
+  }
+
+  // Handle price update
+  const handlePriceUpdate = async () => {
+    const price = Number.parseFloat(editedPrice.replace(",", "."))
+    if (!Number.isFinite(price) || price < 0) {
+      toast({
+        title: t("common.error"),
+        description: t("match.invalidPrice"),
+        variant: "destructive",
+      })
+      return
+    }
+
+    try {
+      setSavingPrice(true)
+      const result = await updateMatchPrice(matchId, price)
+
+      if (result.success) {
+        const saved = result.price ?? price
+        setMatch((prev) => (prev ? { ...prev, price: saved } : null))
+        setIsEditingPrice(false)
+        toast({
+          title: t("common.success"),
+          description: t("match.priceUpdated"),
+        })
+      } else {
+        toast({
+          title: t("common.error"),
+          description: result.error || t("match.priceUpdateError"),
+          variant: "destructive",
+        })
+      }
+    } catch (error) {
+      console.error("Error updating price:", error)
+      toast({
+        title: t("common.error"),
+        description: t("match.priceUpdateError"),
+        variant: "destructive",
+      })
+    } finally {
+      setSavingPrice(false)
     }
   }
 
@@ -1236,10 +1332,110 @@ export default function MatchPage({ params }: { params: { id: string } }) {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="flex items-center mb-2">
-            <Clock className="mr-2 h-4 w-4 text-muted-foreground" />
-            <span>{match.time}</span>
+          {/* Kickoff time — editable for admin */}
+          <div className="flex items-center mb-2 min-h-9">
+            <Clock className="mr-2 h-4 w-4 shrink-0 text-muted-foreground" />
+            {isAdmin && isEditingTime ? (
+              <div className="flex items-center gap-2">
+                <Input
+                  type="time"
+                  value={editedTime}
+                  onChange={(e) => setEditedTime(e.target.value)}
+                  className="h-9 w-[7.5rem]"
+                  aria-label={t("match.timeLabel")}
+                />
+                <Button
+                  size="sm"
+                  onClick={handleTimeUpdate}
+                  disabled={savingTime || !editedTime}
+                  className="bg-green-600 hover:bg-green-700"
+                >
+                  {savingTime ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}
+                </Button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="bg-transparent"
+                  onClick={() => setIsEditingTime(false)}
+                >
+                  <X className="h-4 w-4" />
+                </Button>
+              </div>
+            ) : (
+              <>
+                <span>{match.time}</span>
+                {isAdmin && (
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    className="ml-1 h-8 w-8 p-0"
+                    onClick={() => {
+                      setEditedTime(match.time)
+                      setIsEditingTime(true)
+                    }}
+                  >
+                    <Pencil className="h-3.5 w-3.5" />
+                  </Button>
+                )}
+              </>
+            )}
           </div>
+
+          {/* Fee per player — editable for admin */}
+          <div className="flex items-center mb-2 min-h-9">
+            <PoundSterling className="mr-2 h-4 w-4 shrink-0 text-muted-foreground" />
+            {isAdmin && isEditingPrice ? (
+              <div className="flex items-center gap-2">
+                <Input
+                  type="number"
+                  inputMode="decimal"
+                  min="0"
+                  step="0.5"
+                  value={editedPrice}
+                  onChange={(e) => setEditedPrice(e.target.value)}
+                  className="h-9 w-[7.5rem]"
+                  aria-label={t("match.priceLabel")}
+                />
+                <Button
+                  size="sm"
+                  onClick={handlePriceUpdate}
+                  disabled={savingPrice || editedPrice.trim() === ""}
+                  className="bg-green-600 hover:bg-green-700"
+                >
+                  {savingPrice ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}
+                </Button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="bg-transparent"
+                  onClick={() => setIsEditingPrice(false)}
+                >
+                  <X className="h-4 w-4" />
+                </Button>
+              </div>
+            ) : (
+              <>
+                <span>
+                  £{match.price.toFixed(2)}{" "}
+                  <span className="text-muted-foreground">({t("match.priceLabel")})</span>
+                </span>
+                {isAdmin && (
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    className="ml-1 h-8 w-8 p-0"
+                    onClick={() => {
+                      setEditedPrice(match.price.toFixed(2))
+                      setIsEditingPrice(true)
+                    }}
+                  >
+                    <Pencil className="h-3.5 w-3.5" />
+                  </Button>
+                )}
+              </>
+            )}
+          </div>
+
           <div className="flex items-center">
             <Users className="mr-2 h-4 w-4 text-muted-foreground" />
             <span>
