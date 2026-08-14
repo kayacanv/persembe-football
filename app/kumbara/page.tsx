@@ -29,7 +29,12 @@ import { toast } from "@/components/ui/use-toast"
 import { PiggyBank } from "@/app/components/piggy-bank"
 import { LanguageSwitcher } from "@/app/components/language-switcher"
 import { ACTIVE_PIGGY } from "@/app/config/piggy"
-import { formatPounds, getPiggyTotals, type PiggyContribution } from "@/app/lib/piggy-service"
+import {
+  contributorName,
+  formatPounds,
+  getPiggyTotals,
+  type PiggyContribution,
+} from "@/app/lib/piggy-service"
 import {
   addManualContribution,
   deleteManualContribution,
@@ -288,7 +293,7 @@ export default function KumbaraPage() {
             <div className="space-y-2">
               {/* Names only — who chipped in is public, how much they gave is not. */}
               {contributions.map((c) => {
-                const name = c.display_name?.trim() || t("piggy.anonymous")
+                const name = contributorName(c.display_name) || t("piggy.anonymous")
                 return (
                   <div key={c.id} className="flex items-center gap-3 rounded-lg border bg-card p-3">
                     <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-amber-300 to-amber-500 font-bold text-amber-900">

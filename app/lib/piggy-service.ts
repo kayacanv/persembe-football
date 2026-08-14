@@ -60,6 +60,21 @@ export async function getPiggyTotals(campaign = ACTIVE_PIGGY): Promise<PiggyTota
   }
 }
 
+/**
+ * The name a contributor is known by, for the public wall.
+ *
+ * Bank transfers arrive under a full legal name ("M Furkan Atasoy", "Serif Soner
+ * Serbest") but people go by the word sitting just before the surname — Furkan,
+ * Soner, Safa. Taking the second-to-last word gets that in every shape the feed
+ * produces, and keeps surnames off a page anyone can open. A one-word name is
+ * returned as-is.
+ */
+export function contributorName(full: string | null | undefined): string {
+  const parts = (full ?? "").trim().split(/\s+/).filter(Boolean)
+  if (parts.length === 0) return ""
+  return parts.length >= 2 ? parts[parts.length - 2] : parts[0]
+}
+
 /** £ with no trailing ".00" — "£170", "£12.50". */
 export function formatPounds(minor: number): string {
   const pounds = minor / 100
