@@ -2,9 +2,21 @@
 
 import { useCallback, useEffect, useRef, useState } from "react"
 import Link from "next/link"
-import { ArrowLeft, Check, Copy, ExternalLink, Loader2, PiggyBank as PiggyIcon, RefreshCw } from "lucide-react"
+import { useSearchParams } from "next/navigation"
+import {
+  ArrowLeft,
+  Check,
+  Copy,
+  ExternalLink,
+  Loader2,
+  PiggyBank as PiggyIcon,
+  Plus,
+  RefreshCw,
+  Trash2,
+} from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
 import {
   Dialog,
   DialogContent,
@@ -18,6 +30,12 @@ import { PiggyBank } from "@/app/components/piggy-bank"
 import { LanguageSwitcher } from "@/app/components/language-switcher"
 import { ACTIVE_PIGGY } from "@/app/config/piggy"
 import { formatPounds, getPiggyTotals, type PiggyContribution } from "@/app/lib/piggy-service"
+import {
+  addManualContribution,
+  deleteManualContribution,
+  listManualContributions,
+  type ManualContribution,
+} from "@/app/actions/piggy-actions"
 import { useTranslation } from "@/lib/i18n/useTranslation"
 import { formatRelativeTime } from "@/lib/i18n/format"
 
@@ -31,6 +49,8 @@ const COIN_SLOTS = 17
 
 export default function KumbaraPage() {
   const { t, locale } = useTranslation()
+  const searchParams = useSearchParams()
+  const isAdmin = searchParams.get("admin") === "true"
 
   const [contributions, setContributions] = useState<PiggyContribution[]>([])
   const [collected, setCollected] = useState(0)
@@ -43,6 +63,15 @@ export default function KumbaraPage() {
   // Bumped whenever the collected total grows, so the pig drops a coin.
   const [coinTrigger, setCoinTrigger] = useState(0)
   const lastCollected = useRef<number | null>(null)
+
+  // Admin-only (?admin=true): hand-typed contributions for money that never
+  // touches the Starling feed (Revolut, cash).
+  const [manual, setManual] = useState<ManualContribution[]>([])
+  const [manualName, setManualName] = useState("")
+  const [manualAmount, setManualAmount] = useState("")
+  const [adding, setAdding] = useState(false)
+  const [deleting, setDeleting] = useState<string | null>(null)
+  const [confirmDelete, setConfirmDelete] = useState<string | null>(null)
 
   const load = useCallback(async (showSpinner = false) => {
     if (showSpinner) setRefreshing(true)
@@ -58,6 +87,14 @@ export default function KumbaraPage() {
     setLoading(false)
     setRefreshing(false)
   }, [])
+
+  const loadManual = useCallback(async () => {
+    setManual(await listManualContributions())
+  }, [])
+
+  useEffect(() => {
+    if (isAdmin) loadManual()
+  }, [isAdmin, loadManual])
 
   useEffect(() => {
     load()
@@ -93,6 +130,59 @@ export default function KumbaraPage() {
     if (Number.isFinite(parsed) && parsed > 0) {
       setAmountMinor(Math.round(parsed * 100))
     }
+  }
+
+  const parsedManualMinor = (() => {
+    const parsed = Number.parseFloat(manualAmount.replace(",", "."))
+    return Number.isFinite(parsed) && parsed > 0 ? Math.round(parsed * 100) : 0
+  })()
+
+  const handleManualAdd = async () => {
+    const name = manualName.trim()
+    if (!name || parsedManualMinor <= 0) {
+      toast({ title: t("common.error"), description: t("piggy.adminInvalid"), variant: "destructive" })
+      return
+    }
+
+    setAdding(true)
+    const { success, error } = await addManualContribution(name, parsedManualMinor)
+    setAdding(false)
+
+    if (!success) {
+      toast({
+        title: t("common.error"),
+        description: error || t("piggy.adminAddFailed"),
+        variant: "destructive",
+      })
+      return
+    }
+
+    toast({
+      title: t("piggy.adminAdded"),
+      description: t("piggy.adminAddedDesc", { name, amount: formatPounds(parsedManualMinor) }),
+    })
+    setManualName("")
+    setManualAmount("")
+    await Promise.all([load(true), loadManual()])
+  }
+
+  const handleManualDelete = async (id: string) => {
+    setDeleting(id)
+    const { success, error } = await deleteManualContribution(id)
+    setDeleting(null)
+    setConfirmDelete(null)
+
+    if (!success) {
+      toast({
+        title: t("common.error"),
+        description: error || t("piggy.adminDeleteFailed"),
+        variant: "destructive",
+      })
+      return
+    }
+
+    toast({ title: t("piggy.adminDeleted"), description: t("piggy.adminDeletedDesc") })
+    await Promise.all([load(true), loadManual()])
   }
 
   const bankRows: { label: string; value: string; copy?: boolean }[] = [
@@ -217,6 +307,119 @@ export default function KumbaraPage() {
             </div>
           )}
         </div>
+
+        {/* Manual add — ?admin=true only. Revolut and cash never reach the bank
+            feed, so they get typed in by hand. */}
+        {isAdmin && (
+          <div className="mt-8 rounded-lg border border-dashed border-pink-300 bg-pink-50/60 p-4 dark:border-pink-900 dark:bg-pink-950/20">
+            <h2 className="flex items-center gap-2 font-semibold">
+              <Plus className="h-4 w-4 text-pink-600" />
+              {t("piggy.adminTitle")}
+            </h2>
+            <p className="mt-1 text-xs text-muted-foreground">{t("piggy.adminDesc")}</p>
+
+            <div className="mt-3 space-y-3">
+              <div className="space-y-1">
+                <Label htmlFor="manual-name" className="text-xs">
+                  {t("piggy.adminWhoPaid")}
+                </Label>
+                <Input
+                  id="manual-name"
+                  value={manualName}
+                  onChange={(e) => setManualName(e.target.value)}
+                  placeholder={t("common.namePlaceholder")}
+                  autoComplete="off"
+                />
+              </div>
+
+              <div className="space-y-1">
+                <Label htmlFor="manual-amount" className="text-xs">
+                  {t("piggy.adminAmount")}
+                </Label>
+                <div className="flex items-center gap-2">
+                  <span className="text-lg font-semibold text-muted-foreground">£</span>
+                  <Input
+                    id="manual-amount"
+                    type="number"
+                    inputMode="decimal"
+                    min="0.01"
+                    step="0.5"
+                    value={manualAmount}
+                    onChange={(e) => setManualAmount(e.target.value)}
+                    placeholder="10"
+                  />
+                </div>
+              </div>
+
+              <Button
+                className="h-11 w-full bg-pink-600 font-semibold hover:bg-pink-700"
+                onClick={handleManualAdd}
+                disabled={adding || !manualName.trim() || parsedManualMinor <= 0}
+              >
+                {adding ? (
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                ) : (
+                  <Plus className="mr-2 h-4 w-4" />
+                )}
+                {t("piggy.adminAdd")}
+              </Button>
+            </div>
+
+            <div className="mt-5">
+              <p className="mb-2 text-xs font-medium text-muted-foreground">
+                {t("piggy.adminManualList")}
+              </p>
+              {manual.length === 0 ? (
+                <p className="text-xs text-muted-foreground">{t("piggy.adminNoManual")}</p>
+              ) : (
+                <div className="space-y-2">
+                  {manual.map((m) => (
+                    <div
+                      key={m.id}
+                      className="flex items-center gap-2 rounded-md border bg-background p-2"
+                    >
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate text-sm font-medium">
+                          {m.display_name?.trim() || t("piggy.anonymous")}
+                        </p>
+                        <p className="truncate text-xs text-muted-foreground">
+                          {formatRelativeTime(m.paid_at, locale)}
+                        </p>
+                      </div>
+                      <span className="shrink-0 text-sm font-semibold">
+                        {formatPounds(m.amount_minor)}
+                      </span>
+                      {confirmDelete === m.id ? (
+                        <Button
+                          variant="destructive"
+                          size="sm"
+                          className="h-8 shrink-0"
+                          onClick={() => handleManualDelete(m.id)}
+                          disabled={deleting === m.id}
+                        >
+                          {deleting === m.id ? (
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                          ) : (
+                            t("piggy.adminConfirmDelete")
+                          )}
+                        </Button>
+                      ) : (
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8 shrink-0 text-muted-foreground"
+                          onClick={() => setConfirmDelete(m.id)}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
 
         <p className="mt-6 text-center text-xs text-muted-foreground">{t("piggy.autoNote")}</p>
       </div>
