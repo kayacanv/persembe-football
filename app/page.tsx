@@ -19,6 +19,7 @@ import {
   AlertCircle,
   Star,
   Phone,
+  KeyRound,
   PiggyBank as PiggyIcon,
 } from "lucide-react"
 import {
@@ -49,8 +50,10 @@ import { useTranslation } from "@/lib/i18n/useTranslation"
 import { formatMatchDate } from "@/lib/i18n/format"
 import { LanguageSwitcher } from "@/app/components/language-switcher"
 import { PhoneRegistration } from "@/app/components/phone-registration"
+import { AccountPanel } from "@/app/components/account-panel"
+import { AuthBadge } from "@/app/components/auth-badge"
 
-const TAB_VALUES = ["matches", "rankings", "contact"] as const
+const TAB_VALUES = ["matches", "rankings", "contact", "account"] as const
 
 export default function HomePage() {
   const { t, locale } = useTranslation()
@@ -187,7 +190,10 @@ export default function HomePage() {
     <div className="container max-w-md mx-auto px-4 py-8">
       <div className="flex items-center justify-between mb-6">
         <h1 className="text-2xl font-bold">Perşembe Halısaha</h1>
-        <LanguageSwitcher />
+        <div className="flex items-center gap-2">
+          <AuthBadge onSelect={() => setActiveTab("account")} />
+          <LanguageSwitcher />
+        </div>
       </div>
 
       {/* Kumbara — shown above the tabs so an open whip-round is impossible to miss. */}
@@ -217,7 +223,7 @@ export default function HomePage() {
       )}
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-        <TabsList className="grid w-full grid-cols-3 mb-6">
+        <TabsList className="grid w-full grid-cols-4 mb-6">
           <TabsTrigger value="matches">
             <Calendar className="mr-1 h-4 w-4 sm:mr-2" />
             <span className="hidden sm:inline">{t("home.tabMatches")}</span>
@@ -232,6 +238,11 @@ export default function HomePage() {
             <Phone className="mr-1 h-4 w-4 sm:mr-2" />
             <span className="hidden sm:inline">{t("home.tabContact")}</span>
             <span className="sm:hidden">{t("home.tabContactShort")}</span>
+          </TabsTrigger>
+          <TabsTrigger value="account">
+            <KeyRound className="mr-1 h-4 w-4 sm:mr-2" />
+            <span className="hidden sm:inline">{t("home.tabAccount")}</span>
+            <span className="sm:hidden">{t("home.tabAccountShort")}</span>
           </TabsTrigger>
         </TabsList>
 
@@ -436,6 +447,10 @@ export default function HomePage() {
 
         <TabsContent value="contact">
           <PhoneRegistration />
+        </TabsContent>
+
+        <TabsContent value="account">
+          <AccountPanel />
         </TabsContent>
       </Tabs>
       {/* Create Match Dialog */}

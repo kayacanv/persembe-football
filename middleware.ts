@@ -1,8 +1,14 @@
 import { NextResponse } from "next/server"
 import type { NextRequest } from "next/server"
+import { createServerClient } from "@supabase/ssr"
 
-export function middleware(request: NextRequest) {
-  // Check if the required environment variables are available
+// Two jobs, in this order:
+//  1. Fail loudly (in Turkish) when the Supabase env vars are missing — a
+//     misconfigured deployment should not render a half-working app.
+//  2. Refresh the auth session cookie on every request, so Server Components,
+//     server actions and later RLS all see the same signed-in user. Signed-out
+//     visitors keep working exactly as before; nothing here gates a route.
+export async function middleware(request: NextRequest) {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
   const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
 
@@ -44,10 +50,46 @@ NEXT_PUBLIC_SUPABASE_ANON_KEY</pre>
     )
   }
 
-  return NextResponse.next()
+  return updateSession(request, supabaseUrl, supabaseAnonKey)
 }
 
-// Only run the middleware on the home page and match pages
+// Official @supabase/ssr Next.js pattern: read cookies off the request, write any
+// refreshed ones onto both the request (for this render) and the response (for
+// the browser). getUser() is what actually triggers the refresh.
+async function updateSession(request: NextRequest, supabaseUrl: string, supabaseAnonKey: string) {
+  let response = NextResponse.next({ request })
+
+  const supabase = createServerClient(supabaseUrl, supabaseAnonKey, {
+    cookies: {
+      getAll() {
+        return request.cookies.getAll()
+      },
+      setAll(cookiesToSet) {
+        for (const { name, value } of cookiesToSet) {
+          request.cookies.set(name, value)
+        }
+        response = NextResponse.next({ request })
+        for (const { name, value, options } of cookiesToSet) {
+          response.cookies.set(name, value, options)
+        }
+      },
+    },
+  })
+
+  try {
+    await supabase.auth.getUser()
+  } catch (error) {
+    // A transient auth outage must never take the whole site down.
+    console.error("Session refresh failed:", error)
+  }
+
+  return response
+}
+
+// Every page, so the session cookie stays fresh site-wide. Static assets are
+// excluded because they cost a pointless auth round-trip, and /api with them:
+// the webhooks and cron there authenticate themselves by signature or secret and
+// must not be slowed down by a session refresh they never read.
 export const config = {
-  matcher: ["/", "/match/:path*"],
+  matcher: ["/((?!api|_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico)$).*)"],
 }

@@ -7,7 +7,8 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { CheckCircle2, Loader2, Lock, Search, UserPlus, X } from "lucide-react"
 import { CountryPhoneInput } from "@/app/components/phone-input"
-import { createUserWithPhone, getUserNames, setUserPhone } from "@/app/lib/data-service"
+import { getUserNames } from "@/app/lib/data-service"
+import { createPlayerWithPhone, updatePhone } from "@/app/actions/auth-actions"
 import { DEFAULT_DIAL, toE164 } from "@/app/lib/phone"
 import { useTranslation } from "@/lib/i18n/useTranslation"
 
@@ -81,7 +82,7 @@ export function PhoneRegistration() {
           setStatus({ type: "error", msg: t("contact.errorNameRequired") })
           return
         }
-        const res = await createUserWithPhone(name, phone)
+        const res = await createPlayerWithPhone(name, dial, national)
         if (res.ok) {
           setStatus({ type: "success", msg: t("contact.successNew", { name: name.trim() }) })
           resetAfterSuccess()
@@ -96,7 +97,7 @@ export function PhoneRegistration() {
           setStatus({ type: "error", msg: t("contact.errorSelectPlayer") })
           return
         }
-        const res = await setUserPhone(selected.id, phone)
+        const res = await updatePhone(selected.id, dial, national)
         if (res.ok) {
           setStatus({ type: "success", msg: t("contact.successExisting", { name: selected.name }) })
           resetAfterSuccess()

@@ -46,7 +46,7 @@ import {
   getUnpaidMatchesCount,
   updateUserCard,
 } from "@/app/lib/profile-service"
-import { setUserPhone } from "@/app/lib/data-service"
+import { updatePhone } from "@/app/actions/auth-actions"
 import { removeBackgroundToCutout } from "@/app/lib/storage-service"
 import { getPlayerMvpCount } from "@/app/lib/mvp-service"
 import type { User as UserType, PlayerMatchSummary, PlayerStats, TeammateStats } from "@/app/lib/types"
@@ -130,7 +130,9 @@ export default function PlayerProfilePage() {
     }
     try {
       setUpdatingContact(true)
-      const res = await setUserPhone(playerId, phone)
+      // Server action: the anon key must never write a phone, and a claimed
+      // player's auth.users row has to move with it.
+      const res = await updatePhone(playerId, dial, national)
       if (res.ok) {
         toast({ title: t("common.success"), description: t("profile.phoneSaved") })
         setUser((prev) => (prev ? { ...prev, phone } : null))
