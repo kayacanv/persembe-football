@@ -15,11 +15,12 @@ export function AuthBadge({ onSelect }: { onSelect?: () => void }) {
   const firstName = player.name.trim().split(/\s+/)[0]
   const initial = firstName.charAt(0).toLocaleUpperCase("tr-TR")
 
+  // Avatar only on phones — with the name too, the app title wraps to a second line.
   return (
     <button
       type="button"
       onClick={onSelect}
-      className="flex max-w-[8rem] items-center gap-1.5 rounded-full border px-2 py-1 text-sm transition-colors hover:bg-muted"
+      className="flex max-w-[8rem] shrink-0 items-center gap-1.5 rounded-full border p-0.5 text-sm transition-colors hover:bg-muted sm:px-2 sm:py-1"
       aria-label={firstName}
     >
       {player.photo_url ? (
@@ -36,7 +37,7 @@ export function AuthBadge({ onSelect }: { onSelect?: () => void }) {
           {initial}
         </span>
       )}
-      <span className="truncate">{firstName}</span>
+      <span className="hidden truncate sm:inline">{firstName}</span>
     </button>
   )
 }

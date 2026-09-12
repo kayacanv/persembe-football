@@ -12,14 +12,10 @@ alter table public.users
 
 -- Usernames: lowercase slug, 3-24 chars, unique case-insensitively.
 -- Mirrors USERNAME_REGEX in app/lib/username.ts — keep the two in sync.
-do $$
-begin
-  alter table public.users
-    add constraint users_username_format
-      check (username is null or username ~ '^[a-z0-9][a-z0-9._]{1,22}[a-z0-9]$');
-exception
-  when duplicate_object then null;
-end $$;
+alter table public.users drop constraint if exists users_username_format;
+alter table public.users
+  add constraint users_username_format
+    check (username is null or username ~ '^[a-z0-9][a-z0-9._]{1,22}[a-z0-9]$');
 
 create unique index if not exists users_username_lower_key
   on public.users (lower(username));
@@ -34,3 +30,8 @@ create table if not exists public.claim_attempts (
 
 create index if not exists claim_attempts_user_time_idx
   on public.claim_attempts (user_id, attempted_at desc);
+
+-- The throttle is only meaningful if players cannot edit it themselves. No
+-- policies, so the anon and authenticated keys get nothing; claimAccount reads
+-- and writes it with the service-role key, which bypasses RLS.
+alter table public.claim_attempts enable row level security;
