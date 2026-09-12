@@ -268,9 +268,7 @@ export default function HomePage() {
                 <CardHeader className="pb-2">
                   <CardTitle>{formatMatchDate(activeMatch.date, locale)}</CardTitle>
                   <CardDescription>
-                    {activeMatch.status === "registering"
-                      ? t("match.statusRegistering")
-                      : t("match.statusReady")}
+                    {t("match.statusRegistering")}
                   </CardDescription>
                 </CardHeader>
                 <CardContent>

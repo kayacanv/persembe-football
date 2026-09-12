@@ -1,5 +1,6 @@
 import { getSupabaseBrowserClient } from "./supabase"
 import { MAX_ACTIVE_PLAYERS } from "./constants"
+import { unlinkBankPaymentsForMatchPlayer } from "../actions/starling-actions"
 import type { Match, MatchStatus, Position, PlayerWithDetails, Team, PlayerStatus, PlayerRankingStats } from "./types"
 import type { User } from "./types"
 
@@ -88,7 +89,6 @@ export async function getPlayersForMatch(matchId: string): Promise<PlayerWithDet
       field_x,
       field_y,
       registration_date,
-      cancellation_date,
       users (
         id,
         name,
@@ -161,7 +161,6 @@ export async function getPlayersForMatch(matchId: string): Promise<PlayerWithDet
     field_x: item.field_x ?? null, // exact pitch x % (source of truth for layout)
     field_y: item.field_y ?? null, // exact pitch y %
     registration_date: item.registration_date,
-    cancellation_date: item.cancellation_date,
   }))
 
   // Calculate waitlist positions for waitlisted players
@@ -172,12 +171,8 @@ export async function getPlayersForMatch(matchId: string): Promise<PlayerWithDet
     player.waitlist_position = index + 1
   })
 
-  // Sort players: active first, then waitlisted, then canceled
-  return [
-    ...players.filter((p) => p.status === "active"),
-    ...waitlistedPlayers,
-    ...players.filter((p) => p.status === "canceled"),
-  ]
+  // Sort players: active first, then waitlisted
+  return [...players.filter((p) => p.status === "active"), ...waitlistedPlayers]
 }
 
 // Create a new match
@@ -276,31 +271,14 @@ export async function registerPlayerForMatch(
   // Check if the player is already registered for this match
   const { data: existingRegistration, error: registrationError } = await supabase
     .from("match_players")
-    .select("id, status")
+    .select("id")
     .eq("match_id", matchId)
     .eq("user_id", userId)
     .single()
 
   if (!registrationError && existingRegistration) {
-    // Player is already registered, check if they're canceled
-    if (existingRegistration.status === "canceled") {
-      // Reactivate the player
-      const { error: updateError } = await supabase
-        .from("match_players")
-        .update({
-          status: "active",
-          cancellation_date: null,
-          registration_date: new Date().toISOString(),
-        })
-        .eq("id", existingRegistration.id)
-
-      if (updateError) {
-        console.error("Error reactivating player:", updateError)
-        return false
-      }
-      return true
-    }
-    return true // Player already registered and active, consider it a success
+    // Leaving is a hard delete, so an existing row always means "already registered".
+    return true
   }
 
   // Count active players to determine if the player should be waitlisted
@@ -335,84 +313,73 @@ export async function registerPlayerForMatch(
   return true
 }
 
-// Cancel player registration
-export async function cancelPlayerRegistration(matchPlayerId: string): Promise<boolean> {
+export type LeaveResult = "removed" | "blocked_paid" | "error"
+
+// Take a player off a match. Leaving is a hard delete: the match_players row is
+// removed and a later sign-up creates a fresh row. A player marked as paid is
+// refused — the payment has to be un-marked first so the bank reconciliation
+// trail stays intact. If the leaver held a playing slot, the oldest reserve is
+// promoted into it.
+export async function removePlayerFromMatch(matchPlayerId: string): Promise<LeaveResult> {
   const supabase = getSupabaseBrowserClient()
   if (!supabase) {
     console.error("Supabase client is not initialized")
-    return false
+    return "error"
   }
 
-  // Update the player's status to canceled
-  const { error: updateError } = await supabase
+  const { data: row, error: fetchError } = await supabase
     .from("match_players")
-    .update({
-      status: "canceled",
-      cancellation_date: new Date().toISOString(),
-    })
-    .eq("id", matchPlayerId)
-
-  if (updateError) {
-    console.error("Error canceling registration:", updateError)
-    return false
-  }
-
-  // Get the match ID to promote waitlisted players
-  const { data: matchPlayer, error: fetchError } = await supabase
-    .from("match_players")
-    .select("match_id")
+    .select("status, has_paid, match_id")
     .eq("id", matchPlayerId)
     .single()
 
-  if (fetchError) {
+  if (fetchError || !row) {
     console.error("Error fetching match player:", fetchError)
-    return true // Still return true as the cancellation was successful
+    return "error"
   }
 
-  // Check if there are any waitlisted players to promote
-  const { data: waitlistedPlayers, error: waitlistError } = await supabase
-    .from("match_players")
-    .select("id")
-    .eq("match_id", matchPlayer.match_id)
-    .eq("status", "waitlist")
-    .order("registration_date", { ascending: true })
-    .limit(1)
+  if (row.has_paid) return "blocked_paid"
 
-  if (waitlistError) {
-    console.error("Error fetching waitlisted players:", waitlistError)
-    return true // Still return true as the cancellation was successful
+  // Belt-and-braces: has_paid blocks the real case, but never let the FK's
+  // ON DELETE SET NULL leave a "matched" bank payment with no player behind it.
+  const unlink = await unlinkBankPaymentsForMatchPlayer(matchPlayerId)
+  if (!unlink.success) {
+    console.error("Error unlinking bank payments:", unlink.error)
+    return "error"
   }
 
-  // If there's a waitlisted player, promote them to active
-  if (waitlistedPlayers && waitlistedPlayers.length > 0) {
-    const { error: promoteError } = await supabase
+  const { error: deleteError } = await supabase.from("match_players").delete().eq("id", matchPlayerId)
+
+  if (deleteError) {
+    console.error("Error removing player from match:", deleteError)
+    return "error"
+  }
+
+  // Only an active departure frees a playing slot to promote into.
+  if (row.status === "active") {
+    const { data: waitlistedPlayers, error: waitlistError } = await supabase
       .from("match_players")
-      .update({ status: "active" })
-      .eq("id", waitlistedPlayers[0].id)
+      .select("id")
+      .eq("match_id", row.match_id)
+      .eq("status", "waitlist")
+      .order("registration_date", { ascending: true })
+      .limit(1)
 
-    if (promoteError) {
-      console.error("Error promoting waitlisted player:", promoteError)
+    if (waitlistError) {
+      console.error("Error fetching waitlisted players:", waitlistError)
+    } else if (waitlistedPlayers && waitlistedPlayers.length > 0) {
+      const { error: promoteError } = await supabase
+        .from("match_players")
+        .update({ status: "active" })
+        .eq("id", waitlistedPlayers[0].id)
+
+      if (promoteError) {
+        console.error("Error promoting waitlisted player:", promoteError)
+      }
     }
   }
 
-  return true
-}
-
-// Remove a player from a match
-export async function removePlayerFromMatch(matchId: string, userId: string): Promise<boolean> {
-  const supabase = getSupabaseBrowserClient()
-  if (!supabase) {
-    console.error("Supabase client is not initialized")
-    return false
-  }
-  const { error } = await supabase.from("match_players").delete().eq("match_id", matchId).eq("user_id", userId)
-
-  if (error) {
-    console.error("Error removing player from match:", error)
-    return false
-  }
-
-  return true
+  return "removed"
 }
 
 // Update player payment status
@@ -474,7 +441,7 @@ export async function createNextThursdayMatch(price = 10): Promise<Match | null>
   })
 }
 
-// Get the active match (registering or ready)
+// Get the active match: the one still registering (the cron flips it to done at kickoff)
 export async function getActiveMatch(): Promise<Match | null> {
   const supabase = getSupabaseBrowserClient()
   if (!supabase) {
@@ -484,7 +451,7 @@ export async function getActiveMatch(): Promise<Match | null> {
   const { data, error } = await supabase
     .from("matches")
     .select("*")
-    .in("status", ["registering", "ready"])
+    .eq("status", "registering")
     .order("created_at", { ascending: false })
     .limit(1)
     .single()

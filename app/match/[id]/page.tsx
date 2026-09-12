@@ -15,7 +15,6 @@ import {
   Clock,
   Users,
   ArrowLeft,
-  Trash2,
   Loader2,
   Info,
   AlertTriangle,
@@ -54,7 +53,6 @@ import {
   removePlayerFromMatch,
   confirmUser,
   getAllUsers,
-  cancelPlayerRegistration,
   getActivePlayerCount,
 } from "@/app/lib/data-service"
 import Link from "next/link"
@@ -65,7 +63,7 @@ import { paymentRef } from "@/app/lib/payment-ref"
 import { MAX_ACTIVE_PLAYERS } from "@/app/lib/constants"
 import { isPlaceholderPhone, samePhone } from "@/app/lib/phone"
 import type { User as UserType } from "@/app/lib/types"
-import { format, formatDistanceToNow } from "date-fns"
+import { formatDistanceToNow } from "date-fns"
 import { enUS, tr as trLocale } from "date-fns/locale"
 import { PlayerNameAutocomplete } from "@/app/components/player-name-autocomplete"
 import { Textarea } from "@/components/ui/textarea"
@@ -134,16 +132,11 @@ export default function MatchPage({ params }: { params: { id: string } }) {
   const [selectedUser, setSelectedUser] = useState<UserType | null>(null)
   const [submitting, setSubmitting] = useState(false)
 
-  // Delete player dialog state
-  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
-  const [playerToDelete, setPlayerToDelete] = useState<PlayerWithDetails | null>(null)
+  // Remove-from-list dialog state
+  const [removeDialogOpen, setRemoveDialogOpen] = useState(false)
+  const [playerToRemove, setPlayerToRemove] = useState<PlayerWithDetails | null>(null)
   const [verificationPhone, setVerificationPhone] = useState("")
-  const [deleting, setDeleting] = useState(false)
-
-  // Cancel registration dialog state
-  const [cancelDialogOpen, setCancelDialogOpen] = useState(false)
-  const [playerToCancel, setPlayerToCancel] = useState<PlayerWithDetails | null>(null)
-  const [canceling, setCanceling] = useState(false)
+  const [removing, setRemoving] = useState(false)
 
   // Payment dialog state
   const [paymentDialogOpen, setPaymentDialogOpen] = useState(false)
@@ -244,9 +237,7 @@ export default function MatchPage({ params }: { params: { id: string } }) {
 
   // Check if a user is already registered for this match
   const isUserRegistered = (userName: string) => {
-    return players.some(
-      (player) => player.name.toLowerCase() === userName.toLowerCase() && player.status !== "canceled",
-    )
+    return players.some((player) => player.name.toLowerCase() === userName.toLowerCase())
   }
 
   // Handle user selection from autocomplete
@@ -371,11 +362,7 @@ export default function MatchPage({ params }: { params: { id: string } }) {
       if (success) {
         setMatch({ ...match, status })
         const statusLabel =
-          status === "registering"
-            ? t("match.statusRegisteringShort")
-            : status === "ready"
-              ? t("match.statusReadyShort")
-              : t("match.statusDoneShort")
+          status === "registering" ? t("match.statusRegisteringShort") : t("match.statusDoneShort")
         toast({
           title: t("match.statusUpdatedTitle"),
           description: t("match.statusUpdated", { status: statusLabel }),
@@ -569,21 +556,22 @@ export default function MatchPage({ params }: { params: { id: string } }) {
     }
   }
 
-  // Open delete dialog
-  const openDeleteDialog = (player: PlayerWithDetails) => {
-    setPlayerToDelete(player)
+  // Open the remove-from-list dialog
+  const openRemoveDialog = (player: PlayerWithDetails) => {
+    setPlayerToRemove(player)
     setVerificationPhone("")
-    setDeleteDialogOpen(true)
+    setRemoveDialogOpen(true)
   }
 
-  // Handle delete player
-  const handleDeletePlayer = async () => {
-    if (!playerToDelete) return
+  // Handle removing a player from the list. Leaving is a hard delete; a paid
+  // player is refused until the payment is un-marked.
+  const handleRemovePlayer = async () => {
+    if (!playerToRemove) return
 
     // If the player doesn't have a phone number or has a generated one, skip verification.
     // Otherwise compare loosely (samePhone) so a member can type their number with or
     // without the country code / formatting and still match the E.164-stored value.
-    if (!isPlaceholderPhone(playerToDelete.phone) && !samePhone(verificationPhone, playerToDelete.phone)) {
+    if (!isPlaceholderPhone(playerToRemove.phone) && !samePhone(verificationPhone, playerToRemove.phone)) {
       toast({
         title: t("common.error"),
         description: t("error.phoneMismatch"),
@@ -593,92 +581,50 @@ export default function MatchPage({ params }: { params: { id: string } }) {
     }
 
     try {
-      setDeleting(true)
-      const success = await removePlayerFromMatch(matchId, playerToDelete.id)
+      setRemoving(true)
+      const result = await removePlayerFromMatch(playerToRemove.match_player_id)
 
-      if (success) {
-        // Update players list
-        const updatedPlayers = players.filter((p) => p.id !== playerToDelete.id)
+      if (result === "removed") {
+        // Refresh the list: a reserve may have been promoted into the freed slot
+        const updatedPlayers = await getPlayersForMatch(matchId)
         setPlayers(updatedPlayers)
 
-        // Update active player count
         const updatedActiveCount = await getActivePlayerCount(matchId)
         setActivePlayerCount(updatedActiveCount)
 
         toast({
           title: t("common.success"),
-          description: t("match.playerDeleted"),
+          description: t("match.playerRemoved"),
         })
 
-        // Close dialog and reset state
-        setDeleteDialogOpen(false)
-        setPlayerToDelete(null)
+        setRemoveDialogOpen(false)
+        setPlayerToRemove(null)
+        setVerificationPhone("")
+      } else if (result === "blocked_paid") {
+        toast({
+          title: t("common.error"),
+          description: t("match.removeBlockedPaid"),
+          variant: "destructive",
+        })
+        setRemoveDialogOpen(false)
+        setPlayerToRemove(null)
         setVerificationPhone("")
       } else {
         toast({
           title: t("common.error"),
-          description: t("match.deletePlayerError"),
+          description: t("match.removePlayerError"),
+          variant: "destructive",
         })
       }
     } catch (error) {
-      console.error("Error deleting player:", error)
+      console.error("Error removing player:", error)
       toast({
         title: t("common.error"),
-        description: t("match.deletePlayerError"),
-      })
-    } finally {
-      setDeleting(false)
-    }
-  }
-
-  // Open cancel registration dialog
-  const openCancelDialog = (player: PlayerWithDetails) => {
-    if (player.status === "canceled") return // Don't open dialog if already canceled
-
-    setPlayerToCancel(player)
-    setCancelDialogOpen(true)
-  }
-
-  // Handle cancel registration
-  const handleCancelRegistration = async () => {
-    if (!playerToCancel) return
-
-    try {
-      setCanceling(true)
-      const success = await cancelPlayerRegistration(playerToCancel.match_player_id)
-
-      if (success) {
-        // Refresh players list
-        const updatedPlayers = await getPlayersForMatch(matchId)
-        setPlayers(updatedPlayers)
-
-        // Update active player count
-        const updatedActiveCount = await getActivePlayerCount(matchId)
-        setActivePlayerCount(updatedActiveCount)
-
-        toast({
-          title: t("common.success"),
-          description: t("match.registrationCanceled"),
-        })
-
-        // Close dialog and reset state
-        setCancelDialogOpen(false)
-        setPlayerToCancel(null)
-      } else {
-        toast({
-          title: t("common.error"),
-          description: t("match.cancelError"),
-        })
-      }
-    } catch (error) {
-      console.error("Error canceling registration:", error)
-      toast({
-        title: t("common.error"),
-        description: t("match.cancelError"),
+        description: t("match.removePlayerError"),
         variant: "destructive",
       })
     } finally {
-      setCanceling(false)
+      setRemoving(false)
     }
   }
 
@@ -857,16 +803,6 @@ export default function MatchPage({ params }: { params: { id: string } }) {
     setConfirmDialogOpen(true)
   }
 
-  // Format date for display
-  const formatDate = (dateString: string) => {
-    try {
-      const date = new Date(dateString)
-      return format(date, "dd.MM.yyyy HH:mm", { locale: dateFnsLocale })
-    } catch (error) {
-      return dateString
-    }
-  }
-
   // Format relative time
   const formatRelativeTime = (dateString: string) => {
     try {
@@ -883,12 +819,6 @@ export default function MatchPage({ params }: { params: { id: string } }) {
       return (
         <Badge variant="outline" className="ml-2 text-xs bg-yellow-50 text-yellow-700 border-yellow-200">
           <Info className="mr-1 h-3 w-3" /> {t("match.waitlistBadge", { position: player.waitlist_position ?? "" })}
-        </Badge>
-      )
-    } else if (player.status === "canceled") {
-      return (
-        <Badge variant="outline" className="ml-2 text-xs bg-red-50 text-red-700 border-red-200">
-          <XCircle className="mr-1 h-3 w-3" /> {t("match.canceledBadge")}
         </Badge>
       )
     } else if (!player.confirmed) {
@@ -983,9 +913,7 @@ export default function MatchPage({ params }: { params: { id: string } }) {
       const usersToRegister: UserType[] = []
 
       // Create a lowercase map for efficient lookup
-      const existingPlayersLower = new Set(
-        players.filter((p) => p.status !== "canceled").map((p) => p.name.toLowerCase()),
-      )
+      const existingPlayersLower = new Set(players.map((p) => p.name.toLowerCase()))
       const allUsersLowerMap = new Map(allUsers.map((u) => [u.name.toLowerCase(), u]))
 
       for (const name of uniqueNames) {
@@ -1052,9 +980,11 @@ export default function MatchPage({ params }: { params: { id: string } }) {
   const teamBPlayers = players.filter((p) => p.status === "active" && p.team === "B")
   const unassignedPlayers = players.filter((p) => p.status === "active" && !p.team)
   const waitlistedPlayers = players.filter((p) => p.status === "waitlist")
-  const canceledPlayers = players.filter((p) => p.status === "canceled")
 
-  const showTeamView = match && (match.status === "ready" || match.status === "done")
+  // The team view is derived from the data: once anyone has a side (or the match
+  // is over) the roster is shown as teams. No manual status flip is needed.
+  const showTeamView =
+    match && (match.status === "done" || players.some((p) => p.team === "A" || p.team === "B"))
 
   if (loading) {
     return (
@@ -1087,7 +1017,7 @@ export default function MatchPage({ params }: { params: { id: string } }) {
   const renderPlayerList = (
     playerList: PlayerWithDetails[],
     title: string,
-    listType: "active" | "waitlist" | "canceled" | "team",
+    listType: "active" | "waitlist" | "team",
   ) => {
     if (playerList.length === 0) return null
 
@@ -1102,7 +1032,7 @@ export default function MatchPage({ params }: { params: { id: string } }) {
                 match.status === "done" && listType === "team"
                   ? "cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800/50"
                   : ""
-              } ${listType === "waitlist" ? "bg-yellow-50 dark:bg-yellow-900/20" : ""} ${listType === "canceled" ? "bg-gray-50 dark:bg-gray-800/30 opacity-75" : ""}`}
+              } ${listType === "waitlist" ? "bg-yellow-50 dark:bg-yellow-900/20" : ""}`}
               onClick={() => (match.status === "done" && listType === "team" ? openPaymentDialog(player) : null)}
             >
               <div>
@@ -1117,22 +1047,13 @@ export default function MatchPage({ params }: { params: { id: string } }) {
                   {getStatusBadge(player)}
                 </div>
                 <div className="text-xs text-muted-foreground mt-1 flex items-center">
-                  {listType === "canceled" ? (
-                    <>
-                      <XCircle className="h-3 w-3 mr-1" />
-                      {t("match.cancellationDate", { date: formatDate(player.cancellation_date || "") })}
-                    </>
-                  ) : (
-                    <>
-                      <Clock3 className="h-3 w-3 mr-1" />
-                      {formatRelativeTime(player.registration_date)}
-                    </>
-                  )}
+                  <Clock3 className="h-3 w-3 mr-1" />
+                  {formatRelativeTime(player.registration_date)}
                 </div>
                 {player.position && (
                   <Badge
                     variant="outline"
-                    className={`mt-1 ${listType === "waitlist" || listType === "canceled" ? "bg-white" : ""}`}
+                    className={`mt-1 ${listType === "waitlist" ? "bg-white" : ""}`}
                   >
                     {player.position.charAt(0).toUpperCase() + player.position.slice(1)}
                   </Badge>
@@ -1151,34 +1072,20 @@ export default function MatchPage({ params }: { params: { id: string } }) {
                     </Badge>
                   )
                 ) : (
-                  match.status === "registering" &&
-                  (listType === "active" || listType === "waitlist") && (
-                    <div className="flex">
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-8 w-8 text-muted-foreground hover:text-yellow-600"
-                        onClick={(e) => {
-                          e.stopPropagation()
-                          openCancelDialog(player)
-                        }}
-                      >
-                        <XCircle className="h-4 w-4" />
-                      </Button>
-                      {isAdmin && (
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-8 w-8 text-muted-foreground hover:text-destructive"
-                          onClick={(e) => {
-                            e.stopPropagation()
-                            openDeleteDialog(player)
-                          }}
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
-                      )}
-                    </div>
+                  // Dropouts happen right up to kickoff, so the remove control stays on
+                  // every list (including the team view) until the match is done.
+                  match.status !== "done" && (
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-8 w-8 text-muted-foreground hover:text-destructive"
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        openRemoveDialog(player)
+                      }}
+                    >
+                      <XCircle className="h-4 w-4" />
+                    </Button>
                   )
                 )}
 
@@ -1197,21 +1104,6 @@ export default function MatchPage({ params }: { params: { id: string } }) {
                       <Check className="mr-1 h-3 w-3" /> {t("common.approve")}
                     </Button>
                   )}
-                {isAdmin && listType === "canceled" && (
-                  <div className="flex items-center">
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="h-8 w-8 text-muted-foreground hover:text-destructive"
-                      onClick={(e) => {
-                        e.stopPropagation()
-                        openDeleteDialog(player)
-                      }}
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
-                  </div>
-                )}
               </div>
             </div>
           ))}
@@ -1236,11 +1128,7 @@ export default function MatchPage({ params }: { params: { id: string } }) {
             <DropdownMenuTrigger asChild>
               <Button variant="outline" size="sm">
                 <span className="mr-2">
-                  {match.status === "registering"
-                    ? t("match.statusRegisteringShort")
-                    : match.status === "ready"
-                      ? t("match.statusReadyShort")
-                      : t("match.statusDoneShort")}
+                  {match.status === "registering" ? t("match.statusRegisteringShort") : t("match.statusDoneShort")}
                 </span>
                 <ChevronDown className="h-4 w-4" />
               </Button>
@@ -1248,9 +1136,6 @@ export default function MatchPage({ params }: { params: { id: string } }) {
             <DropdownMenuContent align="end">
               <DropdownMenuItem onClick={() => handleStatusChange("registering")}>
                 {t("match.statusRegisteringShort")}
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => handleStatusChange("ready")}>
-                {t("match.statusReadyShort")}
               </DropdownMenuItem>
               <DropdownMenuItem onClick={() => handleStatusChange("done")}>
                 {t("match.statusDoneShort")}
@@ -1324,11 +1209,7 @@ export default function MatchPage({ params }: { params: { id: string } }) {
             {formatMatchDate(match.date, locale)} - {t("match.infoTitle")}
           </CardTitle>
           <CardDescription>
-            {match.status === "registering"
-              ? t("match.statusRegistering")
-              : match.status === "ready"
-                ? t("match.statusReady")
-                : t("match.statusDone")}
+            {match.status === "registering" ? t("match.statusRegistering") : t("match.statusDone")}
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -1441,7 +1322,6 @@ export default function MatchPage({ params }: { params: { id: string } }) {
             <span>
               {t("match.registeredPlayers", { count: activePlayerCount })}
               {waitlistedPlayers.length > 0 && ` ${t("match.waitlistCount", { count: waitlistedPlayers.length })}`}
-              {canceledPlayers.length > 0 && ` ${t("match.canceledCount", { count: canceledPlayers.length })}`}
             </span>
           </div>
 
@@ -1654,7 +1534,6 @@ export default function MatchPage({ params }: { params: { id: string } }) {
             )
           )}
           {renderPlayerList(waitlistedPlayers, t("match.waitlistTitle"), "waitlist")}
-          {renderPlayerList(canceledPlayers, t("match.canceledTitle"), "canceled")}
 
           {players.length === 0 && (
             <div className="text-center py-4 text-muted-foreground">{t("match.noPlayers")}</div>
@@ -1662,20 +1541,22 @@ export default function MatchPage({ params }: { params: { id: string } }) {
         </CardContent>
       </Card>
 
-      {/* Delete Player Dialog */}
-      <Dialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+      {/* Remove Player Dialog */}
+      <Dialog open={removeDialogOpen} onOpenChange={setRemoveDialogOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>{t("match.deletePlayerTitle")}</DialogTitle>
+            <DialogTitle>{t("match.removePlayerTitle")}</DialogTitle>
             <DialogDescription>
-              {t("match.deletePlayerConfirm", { name: playerToDelete?.name ?? "" })}
-              {playerToDelete?.phone && !isAutoGeneratedPhone(playerToDelete.phone)
+              {t("match.removePlayerConfirm", { name: playerToRemove?.name ?? "" })}
+              {!playerToRemove?.has_paid && playerToRemove?.phone && !isAutoGeneratedPhone(playerToRemove.phone)
                 ? t("match.confirmWithPhone")
                 : ""}
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-4">
-            {playerToDelete?.phone && !isAutoGeneratedPhone(playerToDelete.phone) ? (
+            {playerToRemove?.has_paid ? (
+              <p className="text-sm text-destructive">{t("match.removeBlockedPaid")}</p>
+            ) : playerToRemove?.phone && !isAutoGeneratedPhone(playerToRemove.phone) ? (
               <div className="space-y-2">
                 <Label htmlFor="verification-phone">{t("common.phoneLabel")}</Label>
                 <Input
@@ -1687,55 +1568,31 @@ export default function MatchPage({ params }: { params: { id: string } }) {
               </div>
             ) : (
               <p className="text-sm text-muted-foreground">
-                {isAutoGeneratedPhone(playerToDelete?.phone || "")
+                {isAutoGeneratedPhone(playerToRemove?.phone || "")
                   ? t("match.noPhoneRegistered")
                   : t("match.phoneNotRequired")}{" "}
-                {t("match.confirmToDelete")}
+                {t("match.confirmToRemove")}
               </p>
+            )}
+            {!playerToRemove?.has_paid && (
+              <p className="text-sm text-muted-foreground">{t("match.removeExplanation")}</p>
             )}
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setDeleteDialogOpen(false)} disabled={deleting}>
-              {t("common.cancel")}
-            </Button>
-            <Button variant="destructive" onClick={handleDeletePlayer} disabled={deleting}>
-              {deleting ? (
-                <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" /> {t("common.deleting")}
-                </>
-              ) : (
-                t("common.delete")
-              )}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* Cancel Registration Dialog */}
-      <Dialog open={cancelDialogOpen} onOpenChange={setCancelDialogOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>{t("match.cancelRegistrationTitle")}</DialogTitle>
-            <DialogDescription>
-              {t("match.cancelRegistrationConfirm", { name: playerToCancel?.name ?? "" })}
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-4 py-4">
-            <p className="text-sm text-muted-foreground">
-              {t("match.canceledExplanation")}
-            </p>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setCancelDialogOpen(false)} disabled={canceling}>
+            <Button variant="outline" onClick={() => setRemoveDialogOpen(false)} disabled={removing}>
               {t("common.dismiss")}
             </Button>
-            <Button variant="destructive" onClick={handleCancelRegistration} disabled={canceling}>
-              {canceling ? (
+            <Button
+              variant="destructive"
+              onClick={handleRemovePlayer}
+              disabled={removing || !!playerToRemove?.has_paid}
+            >
+              {removing ? (
                 <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" /> {t("common.canceling")}
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" /> {t("common.removing")}
                 </>
               ) : (
-                t("match.cancelAction")
+                t("match.removeAction")
               )}
             </Button>
           </DialogFooter>

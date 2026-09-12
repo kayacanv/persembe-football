@@ -1,7 +1,7 @@
-export type MatchStatus = "registering" | "ready" | "done"
+export type MatchStatus = "registering" | "done"
 export type Position = "kaleci" | "defans" | "orta saha" | "forvet" | ""
 export type Team = "A" | "B" | null
-export type PlayerStatus = "active" | "waitlist" | "canceled"
+export type PlayerStatus = "active" | "waitlist"
 
 export type User = {
   id: string
@@ -56,7 +56,6 @@ export type MatchPlayer = {
   field_x?: number | null // normalized pitch x % (0-100); source of truth for layout
   field_y?: number | null // normalized pitch y % (0-100, forward line at top)
   registration_date: string
-  cancellation_date?: string | null
   created_at?: string
   // Joined fields from User
   user?: User
@@ -72,7 +71,6 @@ export type PlayerWithDetails = User & {
   field_x?: number | null // normalized pitch x % (0-100); source of truth for layout
   field_y?: number | null // normalized pitch y % (0-100, forward line at top)
   registration_date: string
-  cancellation_date?: string | null
   waitlist_position?: number
 }
 

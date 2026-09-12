@@ -1,6 +1,6 @@
 -- Mark the active match 'done' every Thursday at 21:00 UK time (Europe/London) via pg_cron.
 --
--- "Active" match = status in ('registering','ready') (see getActiveMatch()).
+-- "Active" match = status 'registering' (see getActiveMatch()); the only other status is 'done'.
 -- This flips it to 'done' at kickoff time each week.
 --
 -- DST-safe: pg_cron fires in UTC, but 21:00 UK is 20:00 UTC in summer (BST)
@@ -35,7 +35,7 @@ begin
 
   update public.matches
   set status = 'done'
-  where status in ('registering', 'ready');
+  where status = 'registering';
 end;
 $$;
 

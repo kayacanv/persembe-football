@@ -120,3 +120,21 @@ export async function linkBankPayment(feedItemUid: string, matchPlayerId: string
 
   return { success: true }
 }
+
+// Detach every bank payment that points at a match_players row about to be
+// deleted, so the FK's ON DELETE SET NULL never leaves a "matched" payment with
+// no player behind it. Runs server-side because bank_payments is service-role
+// write-only. In practice a paid player cannot be removed at all (see
+// removePlayerFromMatch in data-service.ts), so this is belt-and-braces.
+export async function unlinkBankPaymentsForMatchPlayer(matchPlayerId: string) {
+  const supabase = createServerClient()
+  if (!supabase) return { success: false, error: "Database connection failed" }
+
+  const { error } = await supabase
+    .from("bank_payments")
+    .update({ matched_match_player_id: null, match_status: "unmatched" })
+    .eq("matched_match_player_id", matchPlayerId)
+  if (error) return { success: false, error: error.message }
+
+  return { success: true }
+}
