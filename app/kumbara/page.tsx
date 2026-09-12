@@ -291,7 +291,8 @@ export default function KumbaraPage() {
             </p>
           ) : (
             <div className="space-y-2">
-              {/* Names only — who chipped in is public, how much they gave is not. */}
+              {/* Names only — who chipped in is public; how much they gave and
+                  when they gave it are not. */}
               {contributions.map((c) => {
                 const name = contributorName(c.display_name) || t("piggy.anonymous")
                 return (
@@ -299,12 +300,7 @@ export default function KumbaraPage() {
                     <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-amber-300 to-amber-500 font-bold text-amber-900">
                       {name.slice(0, 1).toUpperCase()}
                     </div>
-                    <div className="min-w-0 flex-1">
-                      <p className="truncate font-medium">{name}</p>
-                      <p className="truncate text-xs text-muted-foreground">
-                        {formatRelativeTime(c.paid_at, locale)}
-                      </p>
-                    </div>
+                    <p className="min-w-0 flex-1 truncate font-medium">{name}</p>
                     <Check className="h-5 w-5 shrink-0 text-green-600" />
                   </div>
                 )

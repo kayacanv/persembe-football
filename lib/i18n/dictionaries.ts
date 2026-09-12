@@ -116,6 +116,7 @@ const tr = {
   },
   auth: {
     title: "Hesabım",
+    myProfile: "Profilim",
     signIn: "Giriş Yap",
     signInDesc: "Kullanıcı adın ve şifrenle giriş yap.",
     signOut: "Çıkış Yap",
@@ -653,6 +654,7 @@ const en: Dictionary = {
   },
   auth: {
     title: "My Account",
+    myProfile: "My Profile",
     signIn: "Sign In",
     signInDesc: "Sign in with your username and password.",
     signOut: "Sign Out",

@@ -191,7 +191,7 @@ export default function HomePage() {
       <div className="flex items-center justify-between mb-6">
         <h1 className="text-xl font-bold sm:text-2xl">Perşembe Halısaha</h1>
         <div className="flex items-center gap-2">
-          <AuthBadge onSelect={() => setActiveTab("account")} />
+          <AuthBadge />
           <LanguageSwitcher />
         </div>
       </div>

@@ -1,13 +1,15 @@
 "use client"
 
 // Header chip for the signed-in player: photo (or initial) plus first name.
-// Renders nothing at all when signed out, so the header is unchanged for the
-// logged-out visitors who are still the majority.
+// Tapping it opens that player's own profile page. Renders nothing at all when
+// signed out, so the header is unchanged for the logged-out visitors who are
+// still the majority.
 
 import Image from "next/image"
+import Link from "next/link"
 import { useCurrentPlayer } from "@/app/lib/use-current-player"
 
-export function AuthBadge({ onSelect }: { onSelect?: () => void }) {
+export function AuthBadge() {
   const { player, loading } = useCurrentPlayer()
 
   if (loading || !player) return null
@@ -17,9 +19,8 @@ export function AuthBadge({ onSelect }: { onSelect?: () => void }) {
 
   // Avatar only on phones — with the name too, the app title wraps to a second line.
   return (
-    <button
-      type="button"
-      onClick={onSelect}
+    <Link
+      href={`/profile/${player.id}`}
       className="flex max-w-[8rem] shrink-0 items-center gap-1.5 rounded-full border p-0.5 text-sm transition-colors hover:bg-muted sm:px-2 sm:py-1"
       aria-label={firstName}
     >
@@ -38,7 +39,7 @@ export function AuthBadge({ onSelect }: { onSelect?: () => void }) {
         </span>
       )}
       <span className="hidden truncate sm:inline">{firstName}</span>
-    </button>
+    </Link>
   )
 }
 

@@ -14,7 +14,8 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { CheckCircle2, KeyRound, Loader2, LogIn, LogOut, Search, X } from "lucide-react"
+import Link from "next/link"
+import { CheckCircle2, KeyRound, Loader2, LogIn, LogOut, Search, UserRound, X } from "lucide-react"
 import { CountryPhoneInput } from "@/app/components/phone-input"
 import {
   claimAccount,
@@ -227,6 +228,12 @@ export function AccountPanel() {
             {player.username && <p className="text-sm text-muted-foreground">@{player.username}</p>}
           </div>
           {statusBanner}
+          <Button asChild variant="outline" className="w-full">
+            <Link href={`/profile/${player.id}`}>
+              <UserRound className="mr-2 h-4 w-4" />
+              {t("auth.myProfile")}
+            </Link>
+          </Button>
           <Button variant="outline" className="w-full" onClick={handleSignOut} disabled={submitting}>
             {submitting ? (
               <Loader2 className="mr-2 h-4 w-4 animate-spin" />
