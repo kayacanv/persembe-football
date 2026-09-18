@@ -29,6 +29,10 @@ import {
   Landmark,
   Copy,
   PoundSterling,
+  Lock,
+  LogIn,
+  Phone,
+  Sparkles,
 } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { toast } from "@/components/ui/use-toast"
@@ -57,6 +61,7 @@ import {
 } from "@/app/lib/data-service"
 import Link from "next/link"
 import { createCheckoutSession, verifyPaymentStatus, confirmManualPayment } from "@/app/actions/stripe-actions"
+import { getPayerInfo, type PayerInfo } from "@/app/actions/starling-actions"
 import { updateMatchScore, updateMatchDate, updateMatchTime, updateMatchPrice } from "@/app/actions/match-actions"
 import { getStripe } from "@/app/lib/stripe"
 import { paymentRef } from "@/app/lib/payment-ref"
@@ -143,8 +148,12 @@ export default function MatchPage({ params }: { params: { id: string } }) {
   const [playerToPay, setPlayerToPay] = useState<PlayerWithDetails | null>(null)
   const [processingPayment, setProcessingPayment] = useState(false)
   const [stripeError, setStripeError] = useState<string | null>(null)
-  const [paymentMethod, setPaymentMethod] = useState<"stripe" | "revolut" | "starling">("revolut")
+  const [paymentMethod, setPaymentMethod] = useState<"stripe" | "revolut" | "starling" | "starling-auto">("revolut")
   const [checkingStarling, setCheckingStarling] = useState(false)
+  // What the Starling tabs may say about the player being paid for: has paid
+  // before, has a phone on file, and the recognised bank name (only when the
+  // viewer is allowed to see it — decided server-side).
+  const [payerInfo, setPayerInfo] = useState<PayerInfo | null>(null)
   const [paidWithRevolut, setPaidWithRevolut] = useState(false)
   const [confirmingManualPayment, setConfirmingManualPayment] = useState(false)
 
@@ -748,7 +757,20 @@ export default function MatchPage({ params }: { params: { id: string } }) {
     setStripeError(null)
     setPaymentMethod(isRevolutAllowed(match) ? "revolut" : "starling")
     setPaidWithRevolut(false)
+    setPayerInfo(null)
     setPaymentDialogOpen(true)
+
+    // Known payer with a phone on file lands on the Otomatik tab. The dialog
+    // opens at once; the tab switches when the answer arrives, unless the user
+    // has already picked another tab.
+    getPayerInfo(player.id)
+      .then((info) => {
+        setPayerInfo(info)
+        if (info.known && info.phoneOnFile) {
+          setPaymentMethod((current) => (current === "starling" ? "starling-auto" : current))
+        }
+      })
+      .catch((error) => console.error("Error loading payer info:", error))
   }
 
   // Add the function to handle user confirmation
@@ -1013,6 +1035,14 @@ export default function MatchPage({ params }: { params: { id: string } }) {
   // Calculate Stripe price (base price + 0.20)
   const stripePrice = match.price + 0.2
   const revolutAllowed = isRevolutAllowed(match)
+  // Otomatik (no-reference) Starling tab: only for players we have matched a
+  // payment for before AND who have a real phone on file. UI gate only — the
+  // matcher's payer fallback runs for everyone.
+  const autoTabAvailable = !!payerInfo?.known && !!payerInfo?.phoneOnFile
+  const paymentTabCols = ["grid-cols-2", "grid-cols-3", "grid-cols-4"][
+    (revolutAllowed ? 1 : 0) + (autoTabAvailable ? 1 : 0)
+  ]
+  const settleUpUrl = `https://settleup.starlingbank.com/kayacan-vesek-6f4fc7?amount=${match?.price.toFixed(2) ?? ""}`
 
   const renderPlayerList = (
     playerList: PlayerWithDetails[],
@@ -1613,14 +1643,20 @@ export default function MatchPage({ params }: { params: { id: string } }) {
               value={paymentMethod}
               onValueChange={(value) => setPaymentMethod(value as "stripe" | "revolut" | "starling")}
             >
-              <TabsList className={`grid w-full ${revolutAllowed ? "grid-cols-3" : "grid-cols-2"}`}>
+              <TabsList className={`grid w-full ${paymentTabCols}`}>
                 {revolutAllowed && (
                   <TabsTrigger value="revolut">
                     <ExternalLink className="mr-1 h-4 w-4" /> {t("payment.revolutTab")}
                   </TabsTrigger>
                 )}
+                {autoTabAvailable && (
+                  <TabsTrigger value="starling-auto">
+                    <Sparkles className="mr-1 h-4 w-4" /> {t("payment.autoTab")}
+                  </TabsTrigger>
+                )}
                 <TabsTrigger value="starling">
-                  <Landmark className="mr-1 h-4 w-4" /> {t("payment.starlingTab")}
+                  <Landmark className="mr-1 h-4 w-4" />{" "}
+                  {autoTabAvailable ? t("payment.refTab") : t("payment.starlingTab")}
                 </TabsTrigger>
                 <TabsTrigger value="stripe">
                   <CreditCard className="mr-1 h-4 w-4" /> {t("payment.cardTab")}
@@ -1680,21 +1716,88 @@ export default function MatchPage({ params }: { params: { id: string } }) {
               </TabsContent>
               )}
 
+              {/* Starling — automatic matching for players we have seen pay before.
+                  No reference: the bank payer name + amount + an open registration
+                  identify the payment (payer fallback in app/lib/starling-match.ts). */}
+              {autoTabAvailable && (
+              <TabsContent value="starling-auto" className="space-y-4">
+                <div className="p-4 bg-gray-50 dark:bg-gray-900 rounded-lg border dark:border-gray-800 space-y-3">
+                  <div className="text-center">
+                    <p className="font-medium mb-1">{t("payment.autoHeading")}</p>
+                    <p className="text-sm text-muted-foreground">{t("payment.autoHelp")}</p>
+                    <p className="text-2xl font-bold text-green-600 mt-2">£{match?.price.toFixed(2)}</p>
+                    <Button
+                      onClick={() => window.open(settleUpUrl, "_blank", "noopener,noreferrer")}
+                      className="w-full mt-3 bg-blue-600 hover:bg-blue-700"
+                    >
+                      <ExternalLink className="mr-2 h-4 w-4" /> {t("payment.starlingPayButton")}
+                    </Button>
+                  </div>
+
+                  {/* The recognised bank name: personal data, so it only comes back
+                      from the server when the viewer is this player (or the same
+                      account has paid for the viewer too). */}
+                  {payerInfo?.names ? (
+                    <div className="p-2 rounded-md bg-background border">
+                      <p className="text-xs text-muted-foreground">{t("payment.autoKnownName")}</p>
+                      <p className="text-sm font-medium">{payerInfo.names[0]}</p>
+                      {payerInfo.names.length > 1 && (
+                        <p className="text-xs text-muted-foreground">{payerInfo.names.slice(1).join(" · ")}</p>
+                      )}
+                      <p className="text-xs text-muted-foreground mt-1 flex items-center gap-1">
+                        <Lock className="h-3 w-3 shrink-0" /> {t("payment.autoOnlyYou")}
+                      </p>
+                    </div>
+                  ) : payerInfo?.viewerSignedIn ? (
+                    <p className="text-xs text-muted-foreground flex items-center gap-1">
+                      <Lock className="h-3 w-3 shrink-0" /> {t("payment.autoNotShown")}
+                    </p>
+                  ) : (
+                    <Link
+                      href="/giris"
+                      className="flex items-center gap-2 p-2 rounded-md bg-background border text-sm text-muted-foreground hover:text-foreground"
+                    >
+                      <LogIn className="h-4 w-4 shrink-0" /> {t("payment.autoLoginToSee")}
+                    </Link>
+                  )}
+
+                  <div>
+                    <p className="text-sm font-medium mb-1">{t("payment.autoHowTitle")}</p>
+                    <ol className="list-decimal pl-5 space-y-1 text-sm text-muted-foreground">
+                      <li>{t("payment.autoHowStep1", { price: match?.price.toFixed(2) ?? "" })}</li>
+                      <li>{t("payment.autoHowStep2")}</li>
+                      <li>{t("payment.autoHowStep3")}</li>
+                      <li>{t("payment.autoHowStep4")}</li>
+                    </ol>
+                    <p className="text-xs text-amber-600 dark:text-amber-400 mt-2">{t("payment.autoHowFallback")}</p>
+                  </div>
+
+                </div>
+              </TabsContent>
+              )}
+
               {/* Starling Payment Tab — bank transfer auto-tracked via webhook */}
               <TabsContent value="starling" className="space-y-4">
                 <div className="p-4 bg-gray-50 dark:bg-gray-900 rounded-lg border dark:border-gray-800">
+                  {payerInfo && !payerInfo.known && (
+                    <p className="text-xs text-muted-foreground mb-3 flex items-start gap-1">
+                      <Info className="h-3.5 w-3.5 shrink-0 mt-0.5" /> {t("payment.firstTimeNote")}
+                    </p>
+                  )}
+                  {payerInfo?.known && !payerInfo.phoneOnFile && playerToPay && (
+                    <Link
+                      href={`/profile/${playerToPay.id}`}
+                      className="text-xs text-muted-foreground mb-3 flex items-start gap-1 hover:text-foreground"
+                    >
+                      <Phone className="h-3.5 w-3.5 shrink-0 mt-0.5" /> {t("payment.autoNeedsPhone")}
+                    </Link>
+                  )}
                   <div className="text-center mb-3">
                     <p className="font-medium mb-1">{t("payment.starlingHeading")}</p>
                     <p className="text-sm text-muted-foreground">{t("payment.starlingHelp")}</p>
                     <p className="text-lg font-bold text-green-600 mt-2">£{match?.price.toFixed(2)}</p>
                     <Button
-                      onClick={() =>
-                        window.open(
-                          `https://settleup.starlingbank.com/kayacan-vesek-6f4fc7?amount=${match?.price.toFixed(2) ?? ""}`,
-                          "_blank",
-                          "noopener,noreferrer",
-                        )
-                      }
+                      onClick={() => window.open(settleUpUrl, "_blank", "noopener,noreferrer")}
                       className="w-full mt-3 bg-blue-600 hover:bg-blue-700"
                     >
                       <ExternalLink className="mr-2 h-4 w-4" /> {t("payment.starlingPayButton")}
@@ -1807,7 +1910,7 @@ export default function MatchPage({ params }: { params: { id: string } }) {
                 )}
               </Button>
             )}
-            {paymentMethod === "starling" && (
+            {(paymentMethod === "starling" || paymentMethod === "starling-auto") && (
               <Button
                 onClick={handleCheckStarlingPayment}
                 disabled={checkingStarling}

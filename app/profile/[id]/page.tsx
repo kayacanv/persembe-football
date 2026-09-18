@@ -35,6 +35,9 @@ import {
   Minus,
   Star,
   CreditCard,
+  Landmark,
+  Phone,
+  Trash2,
 } from "lucide-react"
 import Link from "next/link"
 import {
@@ -47,20 +50,27 @@ import {
   updateUserCard,
 } from "@/app/lib/profile-service"
 import { updatePhone } from "@/app/actions/auth-actions"
+import { getMyPayerAliases, removeMyPayerAlias, type MyPayerAlias } from "@/app/actions/starling-actions"
+import { useCurrentPlayer } from "@/app/lib/use-current-player"
+import { formatFullDate } from "@/lib/i18n/format"
 import { removeBackgroundToCutout } from "@/app/lib/storage-service"
 import { getPlayerMvpCount } from "@/app/lib/mvp-service"
 import type { User as UserType, PlayerMatchSummary, PlayerStats, TeammateStats } from "@/app/lib/types"
 import FifaCard from "@/app/components/fifa-card/fifa-card"
 import FifaCardEditor from "@/app/components/fifa-card/fifa-card-editor"
 import { CountryPhoneInput } from "@/app/components/phone-input"
-import { DEFAULT_DIAL, maskPhone, toE164 } from "@/app/lib/phone"
+import { DEFAULT_DIAL, isPlaceholderPhone, maskPhone, toE164 } from "@/app/lib/phone"
 import { useTranslation } from "@/lib/i18n/useTranslation"
 
 export default function PlayerProfilePage() {
   const params = useParams()
   const router = useRouter()
-  const { t } = useTranslation()
+  const { t, locale } = useTranslation()
   const playerId = params.id as string
+
+  // Owner-only bits (the "Ödeme hesabım" card) key off the signed-in player.
+  const { player: me } = useCurrentPlayer()
+  const isOwner = !!me && me.id === playerId
 
   // State
   const [user, setUser] = useState<UserType | null>(null)
@@ -78,6 +88,13 @@ export default function PlayerProfilePage() {
   const [dial, setDial] = useState(DEFAULT_DIAL)
   const [national, setNational] = useState("")
   const [updatingContact, setUpdatingContact] = useState(false)
+
+  // Bank payer names learned from this player's matched Starling payments.
+  // Loaded only for the owner; the server action returns nothing for anyone else.
+  const [payerAliases, setPayerAliases] = useState<MyPayerAlias[]>([])
+  const [payerLoading, setPayerLoading] = useState(false)
+  const [confirmAliasId, setConfirmAliasId] = useState<string | null>(null)
+  const [removingAliasId, setRemovingAliasId] = useState<string | null>(null)
 
   // Photo upload state
   const [selectedFile, setSelectedFile] = useState<File | null>(null)
@@ -119,6 +136,47 @@ export default function PlayerProfilePage() {
     }
     loadData()
   }, [playerId, router])
+
+  // Owner: load the learned payer names once we know who is signed in.
+  useEffect(() => {
+    if (!isOwner) {
+      setPayerAliases([])
+      return
+    }
+    let active = true
+    setPayerLoading(true)
+    getMyPayerAliases()
+      .then((rows) => {
+        if (active) setPayerAliases(rows)
+      })
+      .catch((error) => console.error("Error loading payer aliases:", error))
+      .finally(() => {
+        if (active) setPayerLoading(false)
+      })
+    return () => {
+      active = false
+    }
+  }, [isOwner])
+
+  // "That account is not mine": stops money from that bank name auto-matching to me.
+  const handleRemoveAlias = async (aliasId: string) => {
+    try {
+      setRemovingAliasId(aliasId)
+      const { ok } = await removeMyPayerAlias(aliasId)
+      if (ok) {
+        setPayerAliases((prev) => prev.filter((a) => a.id !== aliasId))
+        toast({ title: t("common.success"), description: t("profile.payerRemoved") })
+      } else {
+        toast({ title: t("common.error"), description: t("profile.payerRemoveError"), variant: "destructive" })
+      }
+    } catch (error) {
+      console.error("Error removing payer alias:", error)
+      toast({ title: t("common.error"), description: t("profile.payerRemoveError"), variant: "destructive" })
+    } finally {
+      setRemovingAliasId(null)
+      setConfirmAliasId(null)
+    }
+  }
 
   // Save/replace the player's phone in canonical E.164 (write-only — see state above).
   const handleSavePhone = async () => {
@@ -704,6 +762,90 @@ export default function PlayerProfilePage() {
                   </div>
                 </CardContent>
               </Card>
+
+              {/* Ödeme hesabım — owner only. Bank payer names are personal data:
+                  the card never renders for other viewers, and the server action
+                  behind it returns nothing for them either. */}
+              {isOwner && (
+                <Card className="mt-4">
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                      <Landmark className="h-5 w-5" /> {t("profile.payerTitle")}
+                    </CardTitle>
+                    <CardDescription>{t("profile.payerDesc")}</CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="space-y-3">
+                      {isPlaceholderPhone(user.phone) && (
+                        <p className="flex items-start gap-2 text-xs text-amber-600 dark:text-amber-400">
+                          <Phone className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+                          <span>{t("profile.payerNeedsPhone")}</span>
+                        </p>
+                      )}
+
+                      {payerLoading ? (
+                        <div className="flex justify-center py-4">
+                          <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+                        </div>
+                      ) : payerAliases.length === 0 ? (
+                        <p className="text-sm text-muted-foreground">{t("profile.payerEmpty")}</p>
+                      ) : (
+                        <div className="space-y-2">
+                          {payerAliases.map((alias) => (
+                            <div
+                              key={alias.id}
+                              className="flex items-center justify-between gap-2 rounded-md border bg-background p-2"
+                            >
+                              <div className="min-w-0">
+                                <p className="truncate text-sm font-medium">{alias.payer_name}</p>
+                                <p className="text-xs text-muted-foreground">
+                                  {t("profile.payerRow", {
+                                    count: alias.match_count,
+                                    date: formatFullDate(alias.last_seen, locale),
+                                  })}
+                                </p>
+                              </div>
+                              {confirmAliasId === alias.id ? (
+                                <div className="flex shrink-0 items-center gap-1">
+                                  <Button
+                                    size="sm"
+                                    variant="destructive"
+                                    onClick={() => handleRemoveAlias(alias.id)}
+                                    disabled={removingAliasId === alias.id}
+                                  >
+                                    {removingAliasId === alias.id ? (
+                                      <Loader2 className="h-4 w-4 animate-spin" />
+                                    ) : (
+                                      t("profile.payerRemoveYes")
+                                    )}
+                                  </Button>
+                                  <Button size="sm" variant="ghost" onClick={() => setConfirmAliasId(null)}>
+                                    {t("common.cancel")}
+                                  </Button>
+                                </div>
+                              ) : (
+                                <Button
+                                  size="sm"
+                                  variant="ghost"
+                                  className="shrink-0 text-muted-foreground"
+                                  onClick={() => setConfirmAliasId(alias.id)}
+                                >
+                                  <Trash2 className="mr-1 h-4 w-4" /> {t("profile.payerRemove")}
+                                </Button>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      )}
+
+                      <div className="flex items-start gap-2 rounded-md border border-blue-200 bg-blue-50 p-3 text-xs text-blue-700 dark:border-blue-800 dark:bg-blue-950/40 dark:text-blue-300">
+                        <Lock className="mt-0.5 h-4 w-4 shrink-0" />
+                        <span>{t("profile.payerPrivacy")}</span>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
             </TabsContent>
           </Tabs>
         </div>

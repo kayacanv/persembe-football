@@ -41,8 +41,10 @@ async function runSync() {
   const summary = {
     fetched: items.length,
     matched: results.filter((r) => r.status === "matched").length,
+    matchedByPayer: results.filter((r) => r.status === "matched" && r.method === "payer").length,
     campaign: results.filter((r) => r.status === "campaign").length,
     unmatched: results.filter((r) => r.status === "unmatched").length,
+    ignored: results.filter((r) => r.status === "ignored").length,
     skipped: results.filter((r) => r.status === "skipped").length,
   }
   console.log("Starling cron sync:", summary)

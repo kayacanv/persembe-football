@@ -11,7 +11,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import { Loader2, Landmark, PiggyBank } from "lucide-react"
+import { ChevronDown, ChevronUp, Loader2, Landmark, PiggyBank, Sparkles, Trash2, Users } from "lucide-react"
 import { toast } from "@/components/ui/use-toast"
 import { Toaster } from "@/components/ui/toaster"
 import {
@@ -19,8 +19,11 @@ import {
   listUnpaidPlayers,
   linkBankPayment,
   assignBankPaymentToPiggy,
+  listPayerAliases,
+  deletePayerAlias,
   type UnmatchedPayment,
   type UnpaidPlayerOption,
+  type PayerAliasAdminRow,
 } from "@/app/actions/starling-actions"
 import { useTranslation } from "@/lib/i18n/useTranslation"
 import { formatFullDate } from "@/lib/i18n/format"
@@ -37,11 +40,29 @@ export default function StarlingReconcilePage() {
   const [linking, setLinking] = useState<string | null>(null)
   const [assigning, setAssigning] = useState<string | null>(null)
 
+  // Learned payer-name -> player pairs. Collapsed by default; this is the
+  // admin's only tool for undoing a wrong auto-learned pair.
+  const [aliases, setAliases] = useState<PayerAliasAdminRow[]>([])
+  const [showAliases, setShowAliases] = useState(false)
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null)
+  const [deletingId, setDeletingId] = useState<string | null>(null)
+
   const load = async () => {
     setLoading(true)
-    const [p, u] = await Promise.all([listUnmatchedBankPayments(), listUnpaidPlayers()])
+    const [p, u, a] = await Promise.all([listUnmatchedBankPayments(), listUnpaidPlayers(), listPayerAliases()])
     setPayments(p)
     setPlayers(u)
+    setAliases(a)
+    // Pre-select the one obvious candidate so a single tap on Link settles it.
+    setSelected((prev) => {
+      const next = { ...prev }
+      for (const payment of p) {
+        if (!next[payment.feed_item_uid] && payment.suggestions.length === 1) {
+          next[payment.feed_item_uid] = payment.suggestions[0].match_player_id
+        }
+      }
+      return next
+    })
     setLoading(false)
   }
 
@@ -85,6 +106,25 @@ export default function StarlingReconcilePage() {
       toast({ title: t("common.error"), description: error || t("admin.linkFailed"), variant: "destructive" })
     }
   }
+
+  const handleDeleteAlias = async (aliasId: string) => {
+    setDeletingId(aliasId)
+    const { success, error } = await deletePayerAlias(aliasId)
+    setDeletingId(null)
+    setConfirmDeleteId(null)
+    if (success) {
+      setAliases((prev) => prev.filter((a) => a.id !== aliasId))
+      toast({ title: t("admin.aliasDeleted") })
+    } else {
+      toast({ title: t("common.error"), description: error || t("admin.aliasDeleteFailed"), variant: "destructive" })
+    }
+  }
+
+  // Group the alias list by bank name so one payer's several players sit together.
+  const aliasGroups = aliases.reduce<Map<string, PayerAliasAdminRow[]>>((acc, row) => {
+    acc.set(row.payer_key, [...(acc.get(row.payer_key) ?? []), row])
+    return acc
+  }, new Map())
 
   return (
     <div className="max-w-2xl mx-auto p-4 space-y-4">
@@ -131,6 +171,32 @@ export default function StarlingReconcilePage() {
                   <span className="font-mono">{p.reference || "—"}</span>
                 </p>
               </div>
+
+              {/* Known payer: their open registrations that fit this amount and
+                  date. One tap pre-selects the picker below. */}
+              {p.suggestions.length > 0 && (
+                <div className="flex flex-wrap gap-2">
+                  {p.suggestions.map((sg) => {
+                    const active = selected[p.feed_item_uid] === sg.match_player_id
+                    return (
+                      <button
+                        key={sg.match_player_id}
+                        type="button"
+                        onClick={() => setSelected((s) => ({ ...s, [p.feed_item_uid]: sg.match_player_id }))}
+                        className={`inline-flex items-center gap-1 rounded-full border px-3 py-1 text-xs ${
+                          active
+                            ? "border-green-600 bg-green-600 text-white"
+                            : "bg-background text-foreground hover:bg-muted"
+                        }`}
+                      >
+                        <Sparkles className="h-3 w-3" />
+                        {t("admin.suggestion")}: {sg.name} — {sg.match_date} (£{sg.price.toFixed(2)})
+                      </button>
+                    )
+                  })}
+                </div>
+              )}
+
               <div className="flex gap-2">
                 <Select
                   value={selected[p.feed_item_uid] ?? ""}
@@ -178,6 +244,71 @@ export default function StarlingReconcilePage() {
           </Card>
         ))
       )}
+
+      {/* Learned payer names. Linking a payment above adds to this list. */}
+      <Card>
+        <CardHeader className="pb-2">
+          <button
+            type="button"
+            onClick={() => setShowAliases((v) => !v)}
+            className="flex w-full items-center justify-between text-left"
+          >
+            <CardTitle className="text-base flex items-center gap-2">
+              <Users className="h-4 w-4" /> {t("admin.knownPayers")}
+              <span className="text-xs font-normal text-muted-foreground">({aliasGroups.size})</span>
+            </CardTitle>
+            {showAliases ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+          </button>
+        </CardHeader>
+        {showAliases && (
+          <CardContent className="space-y-3">
+            {aliasGroups.size === 0 ? (
+              <p className="text-sm text-muted-foreground">{t("admin.noKnownPayers")}</p>
+            ) : (
+              Array.from(aliasGroups.entries()).map(([key, rows]) => (
+                <div key={key} className="rounded-md border p-2 space-y-1">
+                  <p className="text-sm font-medium">{rows[0].payer_name}</p>
+                  {rows.map((row) => (
+                    <div key={row.id} className="flex items-center justify-between gap-2 text-xs">
+                      <div className="min-w-0">
+                        <span className="text-foreground">{row.user_name}</span>{" "}
+                        <span className="text-muted-foreground">
+                          · {t("admin.aliasRow", { count: row.match_count, date: formatFullDate(row.last_seen, locale) })}
+                        </span>
+                      </div>
+                      {confirmDeleteId === row.id ? (
+                        <div className="flex shrink-0 items-center gap-1">
+                          <Button
+                            size="sm"
+                            variant="destructive"
+                            className="h-7 px-2"
+                            onClick={() => handleDeleteAlias(row.id)}
+                            disabled={deletingId === row.id}
+                          >
+                            {deletingId === row.id ? <Loader2 className="h-3 w-3 animate-spin" /> : t("admin.aliasDeleteConfirm")}
+                          </Button>
+                          <Button size="sm" variant="ghost" className="h-7 px-2" onClick={() => setConfirmDeleteId(null)}>
+                            {t("common.cancel")}
+                          </Button>
+                        </div>
+                      ) : (
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          className="h-7 shrink-0 px-2 text-muted-foreground"
+                          onClick={() => setConfirmDeleteId(row.id)}
+                        >
+                          <Trash2 className="mr-1 h-3 w-3" /> {t("admin.aliasDelete")}
+                        </Button>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              ))
+            )}
+          </CardContent>
+        )}
+      </Card>
     </div>
   )
 }
