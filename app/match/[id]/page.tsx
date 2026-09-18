@@ -2,7 +2,7 @@
 
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
 import { Input } from "@/components/ui/input"
-import { useState, useEffect } from "react"
+import { useState, useEffect, useRef } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -61,7 +61,7 @@ import {
 } from "@/app/lib/data-service"
 import Link from "next/link"
 import { createCheckoutSession, verifyPaymentStatus, confirmManualPayment } from "@/app/actions/stripe-actions"
-import { getPayerInfo, type PayerInfo } from "@/app/actions/starling-actions"
+import { getPayerInfo, getPayerInfoBatch, type PayerInfo } from "@/app/actions/starling-actions"
 import { updateMatchScore, updateMatchDate, updateMatchTime, updateMatchPrice } from "@/app/actions/match-actions"
 import { getStripe } from "@/app/lib/stripe"
 import { paymentRef } from "@/app/lib/payment-ref"
@@ -149,11 +149,14 @@ export default function MatchPage({ params }: { params: { id: string } }) {
   const [processingPayment, setProcessingPayment] = useState(false)
   const [stripeError, setStripeError] = useState<string | null>(null)
   const [paymentMethod, setPaymentMethod] = useState<"stripe" | "revolut" | "starling" | "starling-auto">("revolut")
-  const [checkingStarling, setCheckingStarling] = useState(false)
   // What the Starling tabs may say about the player being paid for: has paid
   // before, has a phone on file, and the recognised bank name (only when the
   // viewer is allowed to see it — decided server-side).
   const [payerInfo, setPayerInfo] = useState<PayerInfo | null>(null)
+  // Prefetched per player as soon as the list renders on a finished match, so
+  // opening the dialog needs no round trip (see the effect below).
+  const [payerInfoById, setPayerInfoById] = useState<Record<string, PayerInfo>>({})
+  const payerInfoRequested = useRef<Set<string>>(new Set())
   const [paidWithRevolut, setPaidWithRevolut] = useState(false)
   const [confirmingManualPayment, setConfirmingManualPayment] = useState(false)
 
@@ -718,32 +721,6 @@ export default function MatchPage({ params }: { params: { id: string } }) {
     }
   }
 
-  // Starling: payment is confirmed automatically by the bank webhook. This just
-  // re-checks whether the transfer has landed yet and closes the dialog if paid.
-  const handleCheckStarlingPayment = async () => {
-    if (!playerToPay) return
-    try {
-      setCheckingStarling(true)
-      const updatedPlayers = await getPlayersForMatch(matchId)
-      setPlayers(updatedPlayers)
-      const me = updatedPlayers.find((p) => p.match_player_id === playerToPay.match_player_id)
-      if (me?.has_paid) {
-        toast({ title: t("payment.received"), description: t("payment.confirmed") })
-        setPaymentDialogOpen(false)
-        setPlayerToPay(null)
-      } else {
-        toast({
-          title: t("payment.pending"),
-          description: t("payment.notYetReceived"),
-        })
-      }
-    } catch (error) {
-      console.error("Error checking Starling payment:", error)
-    } finally {
-      setCheckingStarling(false)
-    }
-  }
-
   const copyToClipboard = (text: string, label: string) => {
     navigator.clipboard?.writeText(text).then(
       () => toast({ title: t("common.copied"), description: t("common.copySuccess", { label }) }),
@@ -752,25 +729,51 @@ export default function MatchPage({ params }: { params: { id: string } }) {
   }
 
   // Open payment dialog
+  // Payment dialogs only open on a finished match, so that is when the
+  // per-player payer info is worth prefetching. One batched call per new set
+  // of players; already-requested ids are skipped.
+  useEffect(() => {
+    if (!match || match.status !== "done" || players.length === 0) return
+    const ids = players.map((p) => p.id).filter((id) => !payerInfoRequested.current.has(id))
+    if (ids.length === 0) return
+    ids.forEach((id) => payerInfoRequested.current.add(id))
+    getPayerInfoBatch(ids)
+      .then((batch) => setPayerInfoById((prev) => ({ ...prev, ...batch })))
+      .catch((error) => {
+        console.error("Error prefetching payer info:", error)
+        ids.forEach((id) => payerInfoRequested.current.delete(id))
+      })
+  }, [match, players])
+
+  // Which tab the dialog should open on for this player.
+  const initialPaymentMethod = (info: PayerInfo | null): "revolut" | "starling" | "starling-auto" => {
+    if (isRevolutAllowed(match)) return "revolut"
+    return info?.known && info.phoneOnFile ? "starling-auto" : "starling"
+  }
+
   const openPaymentDialog = (player: PlayerWithDetails) => {
+    const cached = payerInfoById[player.id] ?? null
     setPlayerToPay(player)
     setStripeError(null)
-    setPaymentMethod(isRevolutAllowed(match) ? "revolut" : "starling")
     setPaidWithRevolut(false)
-    setPayerInfo(null)
+    setPayerInfo(cached)
+    setPaymentMethod(initialPaymentMethod(cached))
     setPaymentDialogOpen(true)
+    if (cached) return
 
-    // Known payer with a phone on file lands on the Otomatik tab. The dialog
-    // opens at once; the tab switches when the answer arrives, unless the user
-    // has already picked another tab.
+    // Not prefetched yet (clicked within the first moments, or a stale list):
+    // the dialog shows a short placeholder instead of tabs until this lands.
     getPayerInfo(player.id)
       .then((info) => {
+        setPayerInfoById((prev) => ({ ...prev, [player.id]: info }))
         setPayerInfo(info)
-        if (info.known && info.phoneOnFile) {
-          setPaymentMethod((current) => (current === "starling" ? "starling-auto" : current))
-        }
+        setPaymentMethod(initialPaymentMethod(info))
       })
-      .catch((error) => console.error("Error loading payer info:", error))
+      .catch((error) => {
+        console.error("Error loading payer info:", error)
+        // Fall back to the reference tab rather than a stuck placeholder.
+        setPayerInfo({ known: false, phoneOnFile: false, names: null, viewerSignedIn: false })
+      })
   }
 
   // Add the function to handle user confirmation
@@ -1639,6 +1642,20 @@ export default function MatchPage({ params }: { params: { id: string } }) {
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-4">
+            {payerInfo === null ? (
+              // Payer info still loading: hold the tab row rather than show two
+              // tabs and add the third a beat later.
+              <div className="space-y-4">
+                <div className={`grid w-full ${paymentTabCols} gap-1 rounded-md bg-muted p-1`}>
+                  {Array.from({ length: revolutAllowed ? 3 : 2 }).map((_, i) => (
+                    <div key={i} className="h-8 rounded-sm bg-background/60 animate-pulse" />
+                  ))}
+                </div>
+                <div className="flex justify-center py-10">
+                  <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+                </div>
+              </div>
+            ) : (
             <Tabs
               value={paymentMethod}
               onValueChange={(value) => setPaymentMethod(value as "stripe" | "revolut" | "starling")}
@@ -1737,7 +1754,7 @@ export default function MatchPage({ params }: { params: { id: string } }) {
                   {/* The recognised bank name: personal data, so it only comes back
                       from the server when the viewer is this player (or the same
                       account has paid for the viewer too). */}
-                  {payerInfo?.names ? (
+                  {payerInfo?.names && (
                     <div className="p-2 rounded-md bg-background border">
                       <p className="text-xs text-muted-foreground">{t("payment.autoKnownName")}</p>
                       <p className="text-sm font-medium">{payerInfo.names[0]}</p>
@@ -1748,30 +1765,40 @@ export default function MatchPage({ params }: { params: { id: string } }) {
                         <Lock className="h-3 w-3 shrink-0" /> {t("payment.autoOnlyYou")}
                       </p>
                     </div>
-                  ) : payerInfo?.viewerSignedIn ? (
-                    <p className="text-xs text-muted-foreground flex items-center gap-1">
-                      <Lock className="h-3 w-3 shrink-0" /> {t("payment.autoNotShown")}
-                    </p>
-                  ) : (
-                    <Link
-                      href="/giris"
-                      className="flex items-center gap-2 p-2 rounded-md bg-background border text-sm text-muted-foreground hover:text-foreground"
-                    >
-                      <LogIn className="h-4 w-4 shrink-0" /> {t("payment.autoLoginToSee")}
-                    </Link>
                   )}
 
                   <div>
                     <p className="text-sm font-medium mb-1">{t("payment.autoHowTitle")}</p>
                     <ol className="list-decimal pl-5 space-y-1 text-sm text-muted-foreground">
-                      <li>{t("payment.autoHowStep1", { price: match?.price.toFixed(2) ?? "" })}</li>
+                      <li>{t("payment.autoHowStep1")}</li>
                       <li>{t("payment.autoHowStep2")}</li>
-                      <li>{t("payment.autoHowStep3")}</li>
+                      <li>{t("payment.autoHowStep3", { price: match?.price.toFixed(2) ?? "" })}</li>
                       <li>{t("payment.autoHowStep4")}</li>
                     </ol>
                     <p className="text-xs text-amber-600 dark:text-amber-400 mt-2">{t("payment.autoHowFallback")}</p>
                   </div>
 
+                  {/* Why the name is hidden, and the way to see it. Sits below the
+                      steps so the payment instructions come first. */}
+                  {!payerInfo?.names && (
+                    <div className="p-2 rounded-md bg-background border space-y-2">
+                      <p className="text-xs text-muted-foreground flex items-start gap-1">
+                        <Lock className="h-3.5 w-3.5 shrink-0 mt-0.5" />
+                        <span>
+                          {payerInfo?.viewerSignedIn
+                            ? t("payment.autoNameOwnerOnly")
+                            : t("payment.autoNameHidden")}
+                        </span>
+                      </p>
+                      {!payerInfo?.viewerSignedIn && (
+                        <Button asChild variant="outline" size="sm" className="w-full">
+                          <Link href="/giris">
+                            <LogIn className="mr-2 h-4 w-4" /> {t("payment.autoLoginButton")}
+                          </Link>
+                        </Button>
+                      )}
+                    </div>
+                  )}
                 </div>
               </TabsContent>
               )}
@@ -1886,16 +1913,13 @@ export default function MatchPage({ params }: { params: { id: string } }) {
                 )}
               </TabsContent>
             </Tabs>
+            )}
           </div>
-          <DialogFooter>
-            <Button
-              variant="outline"
-              onClick={() => setPaymentDialogOpen(false)}
-              disabled={processingPayment || confirmingManualPayment}
-            >
-              {t("common.cancel")}
-            </Button>
-            {paymentMethod === "revolut" && (
+          {/* Only the legacy Revolut flow needs a footer (manual confirmation).
+              Starling payments confirm themselves via the bank webhook, and the
+              dialog's top-right X is the way out. */}
+          {paymentMethod === "revolut" && (
+            <DialogFooter>
               <Button
                 onClick={handleManualPaymentConfirmation}
                 disabled={!paidWithRevolut || confirmingManualPayment}
@@ -1909,23 +1933,8 @@ export default function MatchPage({ params }: { params: { id: string } }) {
                   t("common.ok")
                 )}
               </Button>
-            )}
-            {(paymentMethod === "starling" || paymentMethod === "starling-auto") && (
-              <Button
-                onClick={handleCheckStarlingPayment}
-                disabled={checkingStarling}
-                className="bg-green-600 hover:bg-green-700"
-              >
-                {checkingStarling ? (
-                  <>
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" /> {t("common.checking")}
-                  </>
-                ) : (
-                  t("payment.checkPaymentButton")
-                )}
-              </Button>
-            )}
-          </DialogFooter>
+            </DialogFooter>
+          )}
         </DialogContent>
       </Dialog>
 

@@ -228,49 +228,68 @@ export type PayerInfo = {
 
 type AliasRow = { id: string; payer_key: string; payer_name: string; match_count: number; last_seen: string }
 
-export async function getPayerInfo(userId: string): Promise<PayerInfo> {
-  const none: PayerInfo = { known: false, phoneOnFile: false, names: null, viewerSignedIn: false }
-  const supabase = createServerClient()
-  if (!supabase || !userId) return none
+// One round trip for a whole player list: the match page prefetches every
+// player's PayerInfo as soon as the list renders, so the payment dialog can
+// open with the right tabs instead of adding the Otomatik tab a beat later.
+export async function getPayerInfoBatch(userIds: string[]): Promise<Record<string, PayerInfo>> {
+  const ids = Array.from(new Set(userIds.filter(Boolean)))
+  const out: Record<string, PayerInfo> = {}
+  const none = (): PayerInfo => ({ known: false, phoneOnFile: false, names: null, viewerSignedIn: false })
+  for (const id of ids) out[id] = none()
 
-  const [{ data: user }, { data: aliasRows, error }, viewer] = await Promise.all([
-    supabase.from("users").select("phone").eq("id", userId).maybeSingle(),
+  const supabase = createServerClient()
+  if (!supabase || ids.length === 0) return out
+
+  const [{ data: users }, { data: aliasRows, error }, viewer] = await Promise.all([
+    supabase.from("users").select("id, phone").in("id", ids),
     supabase
       .from("payer_aliases")
-      .select("id, payer_key, payer_name, match_count, last_seen")
-      .eq("user_id", userId)
+      .select("id, user_id, payer_key, payer_name, match_count, last_seen")
+      .in("user_id", ids)
       .order("match_count", { ascending: false }),
     getCurrentPlayer(),
   ])
   if (error) {
-    console.error("getPayerInfo:", error.message)
-    return none
+    console.error("getPayerInfoBatch:", error.message)
+    return out
   }
 
-  const aliases = (aliasRows ?? []) as AliasRow[]
-  const known = aliases.length > 0
-  const phoneOnFile = !isPlaceholderPhone(user?.phone)
+  // Bank names the viewer may see: the ones that have also paid for the
+  // viewer's own player (their own aliases). Owner sees everything of theirs.
+  let viewerKeys = new Set<string>()
+  if (viewer) {
+    const { data: mine } = await supabase.from("payer_aliases").select("payer_key").eq("user_id", viewer.id)
+    viewerKeys = new Set((mine ?? []).map((m: { payer_key: string }) => m.payer_key))
+  }
 
-  let names: string[] | null = null
-  if (known && viewer) {
-    if (viewer.id === userId) {
-      names = aliases.map((a) => a.payer_name)
-    } else {
-      const { data: mine } = await supabase
-        .from("payer_aliases")
-        .select("payer_key")
-        .eq("user_id", viewer.id)
-        .in(
-          "payer_key",
-          aliases.map((a) => a.payer_key),
-        )
-      const allowed = new Set((mine ?? []).map((m: { payer_key: string }) => m.payer_key))
-      const visible = aliases.filter((a) => allowed.has(a.payer_key)).map((a) => a.payer_name)
-      names = visible.length ? visible : null
+  const phoneById = new Map((users ?? []).map((u: { id: string; phone: string | null }) => [u.id, u.phone]))
+  const aliasesByUser = new Map<string, (AliasRow & { user_id: string })[]>()
+  for (const a of (aliasRows ?? []) as (AliasRow & { user_id: string })[]) {
+    aliasesByUser.set(a.user_id, [...(aliasesByUser.get(a.user_id) ?? []), a])
+  }
+
+  for (const id of ids) {
+    const aliases = aliasesByUser.get(id) ?? []
+    const known = aliases.length > 0
+    let names: string[] | null = null
+    if (known && viewer) {
+      const visible =
+        viewer.id === id ? aliases : aliases.filter((a) => viewerKeys.has(a.payer_key))
+      names = visible.length ? visible.map((a) => a.payer_name) : null
+    }
+    out[id] = {
+      known,
+      phoneOnFile: !isPlaceholderPhone(phoneById.get(id)),
+      names,
+      viewerSignedIn: !!viewer,
     }
   }
+  return out
+}
 
-  return { known, phoneOnFile, names, viewerSignedIn: !!viewer }
+export async function getPayerInfo(userId: string): Promise<PayerInfo> {
+  const batch = await getPayerInfoBatch([userId])
+  return batch[userId] ?? { known: false, phoneOnFile: false, names: null, viewerSignedIn: false }
 }
 
 export type MyPayerAlias = {
