@@ -21,7 +21,8 @@ import {
   CommandItem,
   CommandList,
 } from "@/components/ui/command"
-import { Loader2, Save, RotateCcw, Check, ChevronsUpDown } from "lucide-react"
+import { Loader2, Save, RotateCcw, Check, ChevronsUpDown, Lock } from "lucide-react"
+import Link from "next/link"
 import { toast } from "@/components/ui/use-toast"
 import { cn } from "@/lib/utils"
 import FifaCard from "./fifa-card"
@@ -30,6 +31,7 @@ import { CARD_TIERS, CARD_TIER_ORDER } from "@/app/config/card-tiers"
 import { CLUBS, clubLogoPath, findClub } from "@/app/config/clubs"
 import { updateUserCard, type CardUpdate } from "@/app/lib/profile-service"
 import type { User } from "@/app/lib/types"
+import { overallFor } from "@/app/lib/rating"
 import { useTranslation } from "@/lib/i18n/useTranslation"
 
 interface FifaCardEditorProps {
@@ -55,17 +57,6 @@ const NATIONS: { code: string; i18nKey: string }[] = [
   { code: "pt", i18nKey: "country.portugal" },
 ]
 
-type StatKey = "pac" | "sho" | "pas" | "dri" | "def" | "phy"
-// `i18nKey` maps to a fifacard.* label; the stat key/value logic is unchanged.
-const STAT_FIELDS: { key: StatKey; i18nKey: string }[] = [
-  { key: "pac", i18nKey: "fifacard.statPac" },
-  { key: "sho", i18nKey: "fifacard.statSho" },
-  { key: "pas", i18nKey: "fifacard.statPas" },
-  { key: "dri", i18nKey: "fifacard.statDri" },
-  { key: "def", i18nKey: "fifacard.statDef" },
-  { key: "phy", i18nKey: "fifacard.statPhy" },
-]
-
 // Map a tier id (config key) to its cardtier.* display label key.
 const TIER_LABEL_KEYS: Record<string, string> = {
   bronze: "cardtier.bronze",
@@ -80,14 +71,12 @@ export default function FifaCardEditor({ user, onSaved }: FifaCardEditorProps) {
   // Local editable state, seeded from the user's current (DB) values via the mapper.
   const initial = useMemo(() => userToCardData(user), [user])
 
-  const [overall, setOverall] = useState(initial.overall)
   const [jerseyNumber, setJerseyNumber] = useState<number | null>(initial.jerseyNumber ?? null)
   const [position, setPosition] = useState(initial.position)
   const [tier, setTier] = useState(initial.tier)
   const [nation, setNation] = useState(initial.nation || "tr")
   const [clubBadgeUrl, setClubBadgeUrl] = useState<string | null>(initial.clubBadgeUrl ?? null)
   const [clubOpen, setClubOpen] = useState(false)
-  const [stats, setStats] = useState(initial.stats)
   const [scale, setScale] = useState(initial.photo.scale)
   const [offsetX, setOffsetX] = useState(initial.photo.x)
   const [offsetY, setOffsetY] = useState(initial.photo.y)
@@ -104,37 +93,29 @@ export default function FifaCardEditor({ user, onSaved }: FifaCardEditorProps) {
   const previewData = useMemo(
     () => ({
       ...initial,
-      overall,
+      // The overall is voted, but follows the chosen position live.
+      overall: overallFor(initial.rating, position),
       jerseyNumber,
       position,
       tier,
       nation,
       clubBadgeUrl,
-      stats,
       baked: isBaked && !unbaked,
       photo: { scale, x: offsetX, y: offsetY, fade },
     }),
-    [initial, overall, jerseyNumber, position, tier, nation, clubBadgeUrl, stats, scale, offsetX, offsetY, fade, isBaked, unbaked],
+    [initial, jerseyNumber, position, tier, nation, clubBadgeUrl, scale, offsetX, offsetY, fade, isBaked, unbaked],
   )
 
-  const setStat = (key: StatKey, value: number) => setStats((s) => ({ ...s, [key]: value }))
   const selectedClub = findClub(clubBadgeUrl)
 
   async function handleSave() {
     setSaving(true)
     const payload: CardUpdate = {
-      card_overall: overall,
       jersey_number: jerseyNumber,
       card_position: position,
       card_tier: tier,
       card_nation: nation,
       club_badge_url: clubBadgeUrl,
-      card_pac: stats.pac,
-      card_sho: stats.sho,
-      card_pas: stats.pas,
-      card_dri: stats.dri,
-      card_def: stats.def,
-      card_phy: stats.phy,
       card_photo_scale: scale,
       card_photo_x: offsetX,
       card_photo_y: offsetY,
@@ -170,13 +151,15 @@ export default function FifaCardEditor({ user, onSaved }: FifaCardEditorProps) {
 
       {showLive && (
         <>
-          {/* Overall */}
-          <div className="space-y-2">
-            <div className="flex items-center justify-between">
-              <Label>{t("fifacard.overall")}</Label>
-              <span className="text-sm font-bold tabular-nums">{overall}</span>
-            </div>
-            <Slider value={[overall]} min={0} max={99} step={1} onValueChange={(v) => setOverall(v[0])} />
+          {/* Overall + stats are voted by other players, never edited here. */}
+          <div className="flex items-start gap-2 rounded-md border bg-muted/40 p-3 text-xs text-muted-foreground">
+            <Lock className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+            <span>
+              {t("fifacard.ratingLocked")}{" "}
+              <Link href="/oyla" className="font-medium text-foreground underline underline-offset-2">
+                {t("rate.title")}
+              </Link>
+            </span>
           </div>
 
           {/* Jersey / squad number */}
@@ -314,35 +297,6 @@ export default function FifaCardEditor({ user, onSaved }: FifaCardEditorProps) {
                 </Command>
               </PopoverContent>
             </Popover>
-          </div>
-
-          {/* Six stats */}
-          <div className="space-y-4">
-            <Label className="text-base">{t("fifacard.statsHeading")}</Label>
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-              {STAT_FIELDS.map(({ key, i18nKey }) => (
-                <div key={key} className="space-y-2">
-                  <div className="flex items-center justify-between">
-                    <Label className="text-sm">{t(i18nKey)}</Label>
-                    <Input
-                      type="number"
-                      min={0}
-                      max={99}
-                      value={stats[key]}
-                      onChange={(e) => setStat(key, Math.max(0, Math.min(99, Number(e.target.value) || 0)))}
-                      className="h-8 w-16 text-center"
-                    />
-                  </div>
-                  <Slider
-                    value={[stats[key]]}
-                    min={0}
-                    max={99}
-                    step={1}
-                    onValueChange={(v) => setStat(key, v[0])}
-                  />
-                </div>
-              ))}
-            </div>
           </div>
 
           {/* Photo framing (only relevant when there is a photo) */}

@@ -15,7 +15,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import Link from "next/link"
-import { CheckCircle2, Heart, KeyRound, Loader2, LogIn, LogOut, Search, UserRound, X } from "lucide-react"
+import { CheckCircle2, Heart, KeyRound, Vote, Loader2, LogIn, LogOut, Search, UserRound, X } from "lucide-react"
 import { CountryPhoneInput } from "@/app/components/phone-input"
 import {
   claimAccount,
@@ -256,6 +256,12 @@ export function AccountPanel() {
               </Button>
             </div>
           )}
+          <Button asChild variant="outline" className="w-full">
+            <Link href="/oyla">
+              <Vote className="mr-2 h-4 w-4" />
+              {t("rate.title")}
+            </Link>
+          </Button>
           <Button asChild variant="outline" className="w-full">
             <Link href={`/profile/${player.id}`}>
               <UserRound className="mr-2 h-4 w-4" />

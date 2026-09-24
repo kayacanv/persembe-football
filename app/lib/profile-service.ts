@@ -5,6 +5,7 @@ import {
   deletePlayerPhoto as deleteOldPhotoFromStorage,
 } from "./storage-service"
 import { parse } from "date-fns"
+import { oneRating } from "./rating"
 
 // Get user by ID
 export async function getUserById(userId: string): Promise<User | null> {
@@ -14,14 +15,19 @@ export async function getUserById(userId: string): Promise<User | null> {
     return null
   }
 
-  const { data, error } = await supabase.from("users").select("*").eq("id", userId).single()
+  const { data, error } = await supabase
+    .from("users")
+    .select("*, player_ratings (voters, cf, cm, wm, fb, cb)")
+    .eq("id", userId)
+    .single()
 
   if (error) {
     console.error("Error fetching user:", error)
     return null
   }
 
-  return data
+  const { player_ratings, ...user } = data
+  return { ...user, rating: oneRating(player_ratings) }
 }
 
 // Update editable user fields (phone, photo_url). NOTE: `users` has no `email`

@@ -7,6 +7,7 @@ import type { CardData } from "./types"
 import { userToCardData } from "./types"
 import type { User } from "@/app/lib/types"
 import Silhouette from "./silhouette"
+import type { PositionGroup } from "@/app/lib/rating"
 
 interface FifaCardProps {
   /** Pass either a normalized CardData... */
@@ -20,13 +21,13 @@ interface FifaCardProps {
   className?: string
 }
 
-const STAT_KEYS: { key: keyof CardData["stats"]; label: string }[] = [
-  { key: "pac", label: "PAC" },
-  { key: "sho", label: "SHO" },
-  { key: "pas", label: "PAS" },
-  { key: "dri", label: "DRI" },
-  { key: "def", label: "DEF" },
-  { key: "phy", label: "PHY" },
+// The five voted position ratings shown in the stat band (see app/lib/rating.ts).
+const POSITION_KEYS: { key: PositionGroup; label: string }[] = [
+  { key: "cf", label: "CF" },
+  { key: "cm", label: "CM" },
+  { key: "wm", label: "RM/LM" },
+  { key: "fb", label: "RB/LB" },
+  { key: "cb", label: "CB" },
 ]
 
 // Card design grid is 560x782; every dimension below is expressed in `cqw`
@@ -106,7 +107,7 @@ const FifaCard = forwardRef<HTMLDivElement, FifaCardProps>(function FifaCard(
         {/* --- Rating + position (top-left) --- */}
         <div className="absolute" style={{ top: "5%", left: "7%", lineHeight: 1 }}>
           <div style={{ fontSize: "15cqw", fontWeight: 800, letterSpacing: "-0.03em" }}>
-            {card.overall}
+            {card.overall ?? "?"}
           </div>
           <div
             style={{
@@ -249,14 +250,14 @@ const FifaCard = forwardRef<HTMLDivElement, FifaCardProps>(function FifaCard(
               />
             </div>
 
-            {/* --- Six stats (single band, value over label) --- */}
+            {/* --- Voted position ratings (single band, value over label; "?" until rated) --- */}
             <div
               className="absolute left-0 right-0 flex justify-center"
               style={{ top: "73%", gap: "3cqw", padding: "0 5cqw" }}
             >
-              {STAT_KEYS.map(({ key, label }) => (
+              {POSITION_KEYS.map(({ key, label }) => (
                 <div key={key} className="flex flex-col items-center" style={{ lineHeight: 1.05 }}>
-                  <span style={{ fontSize: "6.5cqw", fontWeight: 800 }}>{card.stats[key]}</span>
+                  <span style={{ fontSize: "6.5cqw", fontWeight: 800 }}>{card.positionRatings?.[key] ?? "?"}</span>
                   <span style={{ fontSize: "3.4cqw", fontWeight: 600, color: theme.accent }}>
                     {label}
                   </span>

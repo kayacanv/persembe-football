@@ -52,6 +52,7 @@ import { LanguageSwitcher } from "@/app/components/language-switcher"
 import { PhoneRegistration } from "@/app/components/phone-registration"
 import { AccountPanel } from "@/app/components/account-panel"
 import { AuthBadge } from "@/app/components/auth-badge"
+import { RatingBanner } from "@/app/components/rating-banner"
 
 const TAB_VALUES = ["matches", "rankings", "contact", "account"] as const
 
@@ -221,6 +222,8 @@ export default function HomePage() {
           </Card>
         </Link>
       )}
+
+      <RatingBanner />
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
         <TabsList className="grid w-full grid-cols-4 mb-6">

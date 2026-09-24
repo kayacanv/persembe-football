@@ -39,6 +39,7 @@ import {
   Phone,
   Trash2,
   Heart,
+  Vote,
 } from "lucide-react"
 import Link from "next/link"
 import {
@@ -59,6 +60,10 @@ import { getPlayerMvpCount } from "@/app/lib/mvp-service"
 import type { User as UserType, PlayerMatchSummary, PlayerStats, TeammateStats } from "@/app/lib/types"
 import FifaCard from "@/app/components/fifa-card/fifa-card"
 import { TeammatePreferenceCard, TeammatePreferencesList } from "@/app/components/teammate-preferences"
+import { MyVotesPanel } from "@/app/components/my-votes-panel"
+import { MIN_VOTERS, hasRatings } from "@/app/lib/rating"
+import { getMyRatingFor } from "@/app/actions/rating-actions"
+import type { MyRating, StatValues } from "@/app/lib/rating-stats"
 import FifaCardEditor from "@/app/components/fifa-card/fifa-card-editor"
 import { CountryPhoneInput } from "@/app/components/phone-input"
 import { DEFAULT_DIAL, isPlaceholderPhone, maskPhone, toE164 } from "@/app/lib/phone"
@@ -69,12 +74,31 @@ export default function PlayerProfilePage() {
   const router = useRouter()
   const { t, locale } = useTranslation()
   const playerId = params.id as string
-  // ?tab=preferences deep-links the owner's teammate preferences (post-login nudge).
-  const initialTab = useSearchParams().get("tab") === "preferences" ? "preferences" : "card"
+  // ?tab= deep-links the owner's teammate preferences (post-login nudge) or the
+  // viewer's own votes for this player (from the rating page).
+  const tabParam = useSearchParams().get("tab")
+  const initialTab = tabParam === "preferences" || tabParam === "myvotes" ? tabParam : "card"
 
   // Owner-only bits (the "Ödeme hesabım" card) key off the signed-in player.
   const { player: me } = useCurrentPlayer()
   const isOwner = !!me && me.id === playerId
+
+  // The viewer's own private rating of this player ("Oylarım" tab), when they can rate them.
+  const [myRating, setMyRating] = useState<{ canRate: boolean; values: StatValues | null; mine: MyRating[] } | null>(
+    null,
+  )
+  useEffect(() => {
+    setMyRating(null)
+    if (!me || me.id === playerId) return
+    let active = true
+    getMyRatingFor(playerId)
+      .then((res) => active && setMyRating(res))
+      .catch((error) => console.error("Error loading my rating:", error))
+    return () => {
+      active = false
+    }
+  }, [me?.id, playerId])
+  const showMyVotes = !isOwner && !!myRating?.canRate
 
   // State
   const [user, setUser] = useState<UserType | null>(null)
@@ -313,6 +337,11 @@ export default function PlayerProfilePage() {
           <div className="w-full max-w-[280px] mx-auto">
             <FifaCard user={user} />
           </div>
+          {!hasRatings(user.rating) && (
+            <p className="mt-2 text-center text-xs text-muted-foreground">
+              {t("rate.cardProgress", { count: Math.min(user.rating?.voters ?? 0, MIN_VOTERS), total: MIN_VOTERS })}
+            </p>
+          )}
           <input
             type="file"
             accept="image/jpeg, image/png, image/webp"
@@ -410,7 +439,7 @@ export default function PlayerProfilePage() {
           </div>
 
           <Tabs defaultValue={initialTab} className="w-full">
-            <TabsList className={`grid h-auto grid-cols-3 mb-6 ${isOwner ? "sm:grid-cols-6" : "sm:grid-cols-5"}`}>
+            <TabsList className={`grid h-auto grid-cols-3 mb-6 ${isOwner || showMyVotes ? "sm:grid-cols-6" : "sm:grid-cols-5"}`}>
               <TabsTrigger value="card">
                 <CreditCard className="h-4 w-4 mr-1 sm:mr-2" />
                 <span>{t("profile.tabCard")}</span>
@@ -439,6 +468,12 @@ export default function PlayerProfilePage() {
                 <TabsTrigger value="preferences">
                   <Heart className="h-4 w-4 mr-1 sm:mr-2" />
                   <span>{t("prefs.tab")}</span>
+                </TabsTrigger>
+              )}
+              {showMyVotes && (
+                <TabsTrigger value="myvotes">
+                  <Vote className="h-4 w-4 mr-1 sm:mr-2" />
+                  <span>{t("rate.myVotesTab")}</span>
                 </TabsTrigger>
               )}
             </TabsList>
@@ -862,6 +897,36 @@ export default function PlayerProfilePage() {
             {isOwner && (
               <TabsContent value="preferences">
                 <TeammatePreferencesList />
+              </TabsContent>
+            )}
+
+            {showMyVotes && myRating && (
+              <TabsContent value="myvotes">
+                <MyVotesPanel
+                  targetId={user.id}
+                  targetName={user.name}
+                  initialValues={myRating.values}
+                  mine={myRating.mine}
+                  onSaved={(values) =>
+                    setMyRating((prev) =>
+                      prev
+                        ? {
+                            ...prev,
+                            values,
+                            mine: [
+                              ...prev.mine.filter((r) => r.targetId !== user.id),
+                              ...(Object.keys(values) as (keyof StatValues)[]).map((stat) => ({
+                                targetId: user.id,
+                                name: user.name,
+                                stat,
+                                value: values[stat],
+                              })),
+                            ],
+                          }
+                        : prev,
+                    )
+                  }
+                />
               </TabsContent>
             )}
           </Tabs>

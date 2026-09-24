@@ -1,14 +1,111 @@
-// Player strength and play style for team building.
+// Player ratings: from crowd votes (plan-ratings.md) to the numbers on the card,
+// plus the strength and play-style values team building reads.
 //
-// Both come from the FIFA card for now (`card_overall`, `card_position`); the
-// crowd-voted ratings in plan-ratings.md will replace the card overall here.
+// Pipeline: each stat = trimmed mean of the voters' values (60-99) → five
+// position ratings = weighted mix of the 8 stats → rescaled 60-99 → 70-99 for
+// display. The player's overall is the rating at their self-chosen card position.
 
 import type { User } from "./types"
+import { RATING_STATS, type RatingStat } from "./rating-stats"
+
+// A player gets numbers once this many different people have rated them.
+export const MIN_VOTERS = 5
+
+export const POSITION_GROUPS = ["cf", "cm", "wm", "fb", "cb"] as const
+export type PositionGroup = (typeof POSITION_GROUPS)[number]
+export type PositionRatings = Record<PositionGroup, number>
+
+// Public row from player_ratings; the group ratings are null until MIN_VOTERS.
+export type PlayerRating = { voters: number } & Record<PositionGroup, number | null>
+
+// Weights in % per position group (each row sums to 100).
+const WEIGHTS: Record<PositionGroup, Partial<Record<RatingStat, number>>> = {
+  cf: { pac: 15, sho: 30, pas: 10, dri: 20, phy: 10, tw: 10, wr: 5 },
+  cm: { pac: 5, sho: 5, pas: 25, dri: 15, def: 10, phy: 10, tw: 15, wr: 15 },
+  wm: { pac: 25, sho: 10, pas: 15, dri: 20, phy: 5, tw: 10, wr: 15 },
+  fb: { pac: 20, pas: 10, dri: 5, def: 25, phy: 10, tw: 10, wr: 20 },
+  cb: { pac: 5, pas: 10, def: 35, phy: 25, tw: 15, wr: 10 },
+}
+
+// Card position → rating group. GK has no stats of its own, so it reads as CB.
+const GROUP_OF_POSITION: Record<string, PositionGroup> = {
+  ST: "cf",
+  CF: "cf",
+  CAM: "cm",
+  CM: "cm",
+  CDM: "cm",
+  RW: "wm",
+  LW: "wm",
+  RM: "wm",
+  LM: "wm",
+  RB: "fb",
+  LB: "fb",
+  RWB: "fb",
+  LWB: "fb",
+  CB: "cb",
+  GK: "cb",
+}
+
+export function positionGroup(cardPosition?: string | null): PositionGroup {
+  return GROUP_OF_POSITION[(cardPosition || "").toUpperCase()] ?? "cm"
+}
+
+// Trimmed mean: with MIN_VOTERS or more values, drop the single highest and lowest.
+function trimmedMean(values: number[]): number {
+  const sorted = [...values].sort((a, b) => a - b)
+  const kept = sorted.length >= MIN_VOTERS ? sorted.slice(1, -1) : sorted
+  return kept.reduce((sum, v) => sum + v, 0) / kept.length
+}
+
+// 60-99 vote scale → 70-99 display scale, order preserved.
+function toDisplay(raw: number): number {
+  return Math.max(70, Math.min(99, Math.round(70 + ((raw - 60) * 29) / 39)))
+}
+
+// All votes for one player → the public row. `votes` holds one entry per
+// (voter, stat); every saved rating covers all 8 stats.
+export function computePlayerRating(votes: { voter_id: string; stat: RatingStat; value: number }[]): PlayerRating {
+  const voters = new Set(votes.map((v) => v.voter_id)).size
+  const empty: PlayerRating = { voters, cf: null, cm: null, wm: null, fb: null, cb: null }
+  if (voters < MIN_VOTERS) return empty
+
+  const stat = {} as Record<RatingStat, number>
+  for (const s of RATING_STATS) {
+    const values = votes.filter((v) => v.stat === s).map((v) => v.value)
+    if (values.length === 0) return empty
+    stat[s] = trimmedMean(values)
+  }
+
+  const result = { ...empty }
+  for (const group of POSITION_GROUPS) {
+    const raw = Object.entries(WEIGHTS[group]).reduce((sum, [s, w]) => sum + stat[s as RatingStat] * (w as number), 0) / 100
+    result[group] = toDisplay(raw)
+  }
+  return result
+}
+
+// A `player_ratings (...)` embed arrives as an object (one-to-one) or, defensively, an array.
+export function oneRating(embed: unknown): PlayerRating | null {
+  const row = Array.isArray(embed) ? embed[0] : embed
+  return row && typeof row === "object" ? (row as PlayerRating) : null
+}
+
+export function hasRatings(r?: PlayerRating | null): r is { voters: number } & PositionRatings {
+  return !!r && POSITION_GROUPS.every((g) => typeof r[g] === "number")
+}
+
+// The overall shown on the card: the rating at the player's chosen position.
+// null = not enough voters yet (the card shows "?").
+export function overallFor(rating: PlayerRating | null | undefined, cardPosition?: string | null): number | null {
+  return hasRatings(rating) ? rating[positionGroup(cardPosition)] : null
+}
 
 const DEFAULT_OVERALL = 70
 
-export function playerStrength(p: Pick<User, "card_overall">): number {
-  return p.card_overall ?? DEFAULT_OVERALL
+// Strength for team building: the voted overall when there is one, else the
+// old self-set card overall.
+export function playerStrength(p: Pick<User, "card_overall" | "card_position" | "rating">): number {
+  return overallFor(p.rating, p.card_position) ?? p.card_overall ?? DEFAULT_OVERALL
 }
 
 // Attack lean from the card position: 1 = pure defender … 5 = pure attacker.

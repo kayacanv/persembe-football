@@ -1,16 +1,8 @@
 import type { User } from "@/app/lib/types"
+import { hasRatings, overallFor, type PlayerRating, type PositionRatings } from "@/app/lib/rating"
 import type { CardTier } from "@/app/config/card-tiers"
 
 export type { CardTier }
-
-export interface CardStats {
-  pac: number
-  sho: number
-  pas: number
-  dri: number
-  def: number
-  phy: number
-}
 
 export interface CardPhotoTransform {
   scale: number
@@ -22,10 +14,13 @@ export interface CardPhotoTransform {
 /** Normalized shape the FifaCard component renders from. */
 export interface CardData {
   name: string
-  overall: number
+  /** Crowd-voted overall at `position`; null until enough voters (card shows "?"). */
+  overall: number | null
   position: string // FIFA slot, e.g. "ST" | "CB" | "GK"
   jerseyNumber?: number | null // editable squad/shirt number (1-99); null = none
-  stats: CardStats
+  /** The five voted position ratings shown in the stat band; null until enough voters. */
+  positionRatings: PositionRatings | null
+  rating: PlayerRating | null
   nation?: string | null // ISO-ish code -> /flags/<code>.svg
   clubBadgeUrl?: string | null
   tier: CardTier
@@ -35,48 +30,36 @@ export interface CardData {
   photo: CardPhotoTransform
 }
 
-const clamp = (n: number, lo = 0, hi = 99) => Math.max(lo, Math.min(hi, Math.round(n)))
-
-// Position-flavored fallback stats around a neutral ~70 base, mirroring the SQL seed.
-// Used only when DB card_* values are absent (defensive — they exist after the migration).
-function fallbackFromPosition(position?: string | null): { stats: CardStats; cardPosition: string } {
+// Old Turkish position → FIFA slot, for rows that predate the card columns.
+function fallbackPosition(position?: string | null): string {
   switch (position) {
     case "kaleci":
-      return { stats: { pac: 58, sho: 35, pas: 60, dri: 52, def: 58, phy: 70 }, cardPosition: "GK" }
+      return "GK"
     case "defans":
-      return { stats: { pac: 66, sho: 50, pas: 66, dri: 60, def: 80, phy: 78 }, cardPosition: "CB" }
-    case "orta saha":
-      return { stats: { pac: 72, sho: 68, pas: 78, dri: 76, def: 64, phy: 70 }, cardPosition: "CM" }
+      return "CB"
     case "forvet":
-      return { stats: { pac: 80, sho: 82, pas: 68, dri: 78, def: 45, phy: 72 }, cardPosition: "ST" }
+      return "ST"
     default:
-      return { stats: { pac: 70, sho: 65, pas: 70, dri: 70, def: 60, phy: 70 }, cardPosition: "CM" }
+      return "CM"
   }
 }
 
 /**
  * Map a DB User into the normalized CardData the component renders.
- * Reads the persisted card_* columns when present, falling back to position-derived
- * defaults so the card always renders even before the migration / for partial rows.
+ * Cosmetic fields come from the card_* columns; the overall and the position
+ * ratings come from the crowd-voted player_ratings row (see app/lib/rating.ts).
  */
 export function userToCardData(user: Partial<User> & { name: string }): CardData {
-  const fb = fallbackFromPosition(user.position)
-
-  const stats: CardStats = {
-    pac: clamp(user.card_pac ?? fb.stats.pac),
-    sho: clamp(user.card_sho ?? fb.stats.sho),
-    pas: clamp(user.card_pas ?? fb.stats.pas),
-    dri: clamp(user.card_dri ?? fb.stats.dri),
-    def: clamp(user.card_def ?? fb.stats.def),
-    phy: clamp(user.card_phy ?? fb.stats.phy),
-  }
+  const position = user.card_position || fallbackPosition(user.position)
+  const rating = user.rating ?? null
 
   return {
     name: user.name,
-    overall: clamp(user.card_overall ?? 70),
-    position: user.card_position || fb.cardPosition,
+    overall: overallFor(rating, position),
+    position,
     jerseyNumber: user.jersey_number ?? null,
-    stats,
+    positionRatings: hasRatings(rating) ? rating : null,
+    rating,
     nation: user.card_nation ?? "tr",
     clubBadgeUrl: user.club_badge_url ?? null,
     tier: (user.card_tier as CardTier) || "silver",

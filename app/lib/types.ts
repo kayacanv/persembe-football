@@ -1,3 +1,5 @@
+import type { PlayerRating } from "./rating"
+
 export type MatchStatus = "registering" | "done"
 export type Position = "kaleci" | "defans" | "orta saha" | "forvet" | ""
 export type Team = "A" | "B" | null
@@ -30,6 +32,8 @@ export type User = {
   card_photo_y?: number
   card_photo_fade?: boolean
   card_baked?: boolean // legacy fully-baked card PNG in photo_url -> render raw
+  // Crowd-voted ratings (player_ratings row); drives the card overall. See app/lib/rating.ts.
+  rating?: PlayerRating | null
 }
 
 export type Match = {
