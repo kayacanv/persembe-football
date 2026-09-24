@@ -10,12 +10,10 @@ export type User = {
   email?: string
   position: Position
   confirmed: boolean
-  power: number // Power rating from 1-10
-  position_weight: number // Attack tendency from 1-5 (1=defend, 5=attack)
   photo_url?: string | null // URL for the player's photo
   created_at?: string
   jersey_number?: number | null // editable squad/shirt number (1-99), shown on the card
-  // --- FIFA-style card fields (cosmetic, independent of `power`/team balancing) ---
+  // --- FIFA-style card fields (`card_overall`/`card_position` also drive team building, see app/lib/rating.ts) ---
   card_overall?: number // 0-99
   card_pac?: number
   card_sho?: number

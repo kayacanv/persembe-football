@@ -5,6 +5,7 @@ import { CardTitle } from "@/components/ui/card"
 import { CardHeader } from "@/components/ui/card"
 import { Card } from "@/components/ui/card"
 import type { PlayerWithDetails } from "@/app/lib/types"
+import { playerStrength } from "@/app/lib/rating"
 import { useTranslation } from "@/lib/i18n/useTranslation"
 
 interface TeamPowerComparisonProps {
@@ -15,29 +16,21 @@ interface TeamPowerComparisonProps {
 export default function TeamPowerComparison({ teamAPlayers, teamBPlayers }: TeamPowerComparisonProps) {
   const { t } = useTranslation()
 
-  // Calculate total power for each team
+  // Total strength (card overall) for each team
   const calculateTeamPower = (players: PlayerWithDetails[]) => {
     if (players.length === 0) return 0
-    return players.reduce((sum, player) => sum + (player.power || 5), 0)
+    return players.reduce((sum, player) => sum + playerStrength(player), 0)
   }
 
   const teamAPower = calculateTeamPower(teamAPlayers)
   const teamBPower = calculateTeamPower(teamBPlayers)
   const totalPower = teamAPower + teamBPower
 
-  // Calculate average power per player for each team
-  const teamAAverage = teamAPlayers.length > 0 ? teamAPower / teamAPlayers.length : 0
-  const teamBAverage = teamBPlayers.length > 0 ? teamBPower / teamBPlayers.length : 0
-
-  // Calculate the position of the indicator (0-100%)
-  // 50% means equal power, <50% means White Team stronger, >50% means Black Team stronger
+  // Indicator position (0-100%): 50% = equal, <50% White Team stronger, >50% Black Team stronger.
+  // Overalls sit around 70-99, so the gap (not the ratio) drives it; ~25 points reads as clearly one-sided.
   const getIndicatorPosition = () => {
     if (totalPower === 0) return 50 // Center if no players
-
-    // Calculate the ratio of Black Team power to total power
-    const teamBRatio = teamBPower / totalPower
-      const adjusted = 1 / (1 + Math.exp(-6 * (teamBRatio - 0.5)));
-    return adjusted * 100;
+    return 50 + 45 * Math.tanh((teamBPower - teamAPower) / 25)
   }
 
   const indicatorPosition = getIndicatorPosition()
@@ -47,16 +40,16 @@ export default function TeamPowerComparison({ teamAPlayers, teamBPlayers }: Team
   const strongerTeam = teamAPower > teamBPower ? "A" : teamBPower > teamAPower ? "B" : "equal"
 
   const getBalanceText = () => {
-    if (powerDifference <= 2) return t("team.veryBalanced")
-    if (powerDifference <= 5) return t("team.balanced")
-    if (powerDifference <= 10) return t("team.slightlyUnbalanced")
+    if (powerDifference <= 8) return t("team.veryBalanced")
+    if (powerDifference <= 20) return t("team.balanced")
+    if (powerDifference <= 40) return t("team.slightlyUnbalanced")
     return t("team.unbalanced")
   }
 
   const getBalanceColor = () => {
-    if (strongerTeam === "equal" || powerDifference <= 2) return "text-green-600"
-    if (powerDifference <= 5) return "text-yellow-600"
-    if (powerDifference <= 10) return "text-orange-600"
+    if (strongerTeam === "equal" || powerDifference <= 8) return "text-green-600"
+    if (powerDifference <= 20) return "text-yellow-600"
+    if (powerDifference <= 40) return "text-orange-600"
     return "text-red-600"
   }
 

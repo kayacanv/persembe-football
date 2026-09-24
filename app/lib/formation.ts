@@ -9,6 +9,7 @@
 // (see add-field-coordinates.sql), so the formation reloads identically for everyone.
 
 import type { PlayerWithDetails } from "@/app/lib/types"
+import { playerStrength } from "@/app/lib/rating"
 
 export const BANDS = ["FWD", "CAM", "MID", "CDM", "DEF"] as const
 export type BandId = (typeof BANDS)[number]
@@ -127,7 +128,7 @@ export function autoShape(players: PlayerWithDetails[]): TeamShape {
   }
   // Stronger players first so they tend to land in the center of their line.
   ;[...players]
-    .sort((a, b) => (b.power || 5) - (a.power || 5))
+    .sort((a, b) => playerStrength(b) - playerStrength(a))
     .forEach((p) => shape[pref(p)].push(p))
 
   const tri: BandId[] = ["DEF", "MID", "FWD"]

@@ -311,7 +311,7 @@ export async function createPlayerWithPhone(
 
   const { data, error } = await supabase
     .from("users")
-    .insert({ name: trimmed, phone, position: "", power: 5, position_weight: 3 })
+    .insert({ name: trimmed, phone, position: "" })
     .select("id")
     .single()
 

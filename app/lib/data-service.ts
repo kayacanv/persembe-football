@@ -3,6 +3,7 @@ import { MAX_ACTIVE_PLAYERS } from "./constants"
 import { unlinkBankPaymentsForMatchPlayer } from "../actions/starling-actions"
 import type { Match, MatchStatus, Position, PlayerWithDetails, Team, PlayerStatus, PlayerRankingStats } from "./types"
 import type { User } from "./types"
+import { playerStrength } from "./rating"
 
 // Get all matches
 export async function getMatches(): Promise<Match[]> {
@@ -95,8 +96,6 @@ export async function getPlayersForMatch(matchId: string): Promise<PlayerWithDet
         phone,
         position,
         confirmed,
-        power,
-        position_weight,
         photo_url,
         jersey_number,
         card_overall,
@@ -132,8 +131,6 @@ export async function getPlayersForMatch(matchId: string): Promise<PlayerWithDet
     phone: item.users.phone,
     position: item.users.position as Position, // This is the user's preferred position (string)
     confirmed: item.users.confirmed,
-    power: item.users.power || 5, // Default to 5 if power is null
-    position_weight: item.users.position_weight || 3, // Default to 3 if position_weight is null
     photo_url: item.users.photo_url, // Added photo_url
     jersey_number: item.users.jersey_number ?? undefined,
     // FIFA card fields (?? keeps cards rendering even if a column is missing/null)
@@ -253,10 +250,10 @@ export async function registerPlayerForMatch(
     // Update user information (without email)
     await supabase.from("users").update({ name, position }).eq("id", userId)
   } else {
-    // User doesn't exist, create a new one (without email, with default power of 5 and position_weight of 3)
+    // User doesn't exist, create a new one (without email)
     const { data: newUser, error: createError } = await supabase
       .from("users")
-      .insert({ name, phone: actualPhone, position, power: 5, position_weight: 3 })
+      .insert({ name, phone: actualPhone, position })
       .select("id")
       .single()
 
@@ -612,8 +609,8 @@ export async function getUnpaidPlayerCount(matchId: string): Promise<number> {
   return count || 0
 }
 
-// Update the balanceTeamsByPower function to consider already assigned players
-export function balanceTeamsByPower(
+// Greedy split by card overall; already assigned players stay where they are.
+export function balanceTeamsByRating(
   unassignedPlayers: PlayerWithDetails[],
   existingTeamA: PlayerWithDetails[] = [],
   existingTeamB: PlayerWithDetails[] = [],
@@ -621,12 +618,8 @@ export function balanceTeamsByPower(
   teamA: PlayerWithDetails[]
   teamB: PlayerWithDetails[]
 } {
-  // Sort unassigned players by power in descending order (best players first)
-  const sortedPlayers = [...unassignedPlayers].sort((a, b) => (b.power || 5) - (a.power || 5))
-
-  // Calculate existing team powers
-  const teamAPower = existingTeamA.reduce((sum, p) => sum + (p.power || 5), 0)
-  const teamBPower = existingTeamB.reduce((sum, p) => sum + (p.power || 5), 0)
+  // Best players first
+  const sortedPlayers = [...unassignedPlayers].sort((a, b) => playerStrength(b) - playerStrength(a))
 
   // Calculate existing team sizes
   const teamASize = existingTeamA.length
@@ -636,13 +629,12 @@ export function balanceTeamsByPower(
   let teamA: PlayerWithDetails[] = [...existingTeamA]
   let teamB: PlayerWithDetails[] = [...existingTeamB]
 
-  // Distribute unassigned players using a greedy algorithm to balance power
+  // Distribute unassigned players using a greedy algorithm to balance strength
   for (const player of sortedPlayers) {
-    // Calculate current team powers
-    const currentTeamAPower = teamA.reduce((sum, p) => sum + (p.power || 5), 0)
-    const currentTeamBPower = teamB.reduce((sum, p) => sum + (p.power || 5), 0)
+    const currentTeamAPower = teamA.reduce((sum, p) => sum + playerStrength(p), 0)
+    const currentTeamBPower = teamB.reduce((sum, p) => sum + playerStrength(p), 0)
 
-    // Add player to the team with lower total power or fewer players if powers are equal
+    // Add player to the team with lower total strength, or fewer players if equal
     if (
       (currentTeamAPower < currentTeamBPower ||
         (currentTeamAPower === currentTeamBPower && teamA.length < teamB.length)) &&

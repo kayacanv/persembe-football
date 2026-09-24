@@ -1,6 +1,7 @@
 "use client"
 
 import type { PlayerWithDetails } from "@/app/lib/types"
+import { attackLean } from "@/app/lib/rating"
 import { useTranslation } from "@/lib/i18n/useTranslation"
 
 interface PlayStyleBarProps {
@@ -11,11 +12,11 @@ interface PlayStyleBarProps {
 export default function PlayStyleBar({ players, team }: PlayStyleBarProps) {
   const { t } = useTranslation()
 
-  // Calculate average position weight for the team
+  // Average attack lean (1-5) of the team, from card positions
   const calculatePlayStyle = () => {
     if (players.length === 0) return 3 // Default neutral value
 
-    const totalWeight = players.reduce((sum, player) => sum + (player.position_weight || 3), 0)
+    const totalWeight = players.reduce((sum, player) => sum + attackLean(player), 0)
     return totalWeight / players.length
   }
 

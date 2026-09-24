@@ -6,7 +6,7 @@ import { useParams } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { ArrowLeft, Users, Loader2, Save, Eraser } from "lucide-react"
-import { getMatchById, getPlayersForMatch, balanceTeamsByPower } from "@/app/lib/data-service"
+import { getMatchById, getPlayersForMatch, balanceTeamsByRating } from "@/app/lib/data-service"
 import type { PlayerWithDetails, Match } from "@/app/lib/types"
 import {
   DndContext,
@@ -165,7 +165,7 @@ export default function OrganizeTeamsPage() {
     const assignedA = shapePlayers(teams.A)
     const assignedB = shapePlayers(teams.B)
     const unassigned = players.filter((p) => !assignedIds.has(p.id))
-    const { teamA, teamB } = balanceTeamsByPower(unassigned, assignedA, assignedB)
+    const { teamA, teamB } = balanceTeamsByRating(unassigned, assignedA, assignedB)
     setTeams({ A: autoShape(teamA), B: autoShape(teamB) })
     setSelectedBenchId(null)
   }
