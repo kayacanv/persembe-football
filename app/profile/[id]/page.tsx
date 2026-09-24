@@ -3,7 +3,7 @@
 import type React from "react"
 
 import { useState, useEffect, useRef } from "react"
-import { useParams, useRouter } from "next/navigation"
+import { useParams, useRouter, useSearchParams } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Label } from "@/components/ui/label"
@@ -38,6 +38,7 @@ import {
   Landmark,
   Phone,
   Trash2,
+  Heart,
 } from "lucide-react"
 import Link from "next/link"
 import {
@@ -57,6 +58,7 @@ import { removeBackgroundToCutout } from "@/app/lib/storage-service"
 import { getPlayerMvpCount } from "@/app/lib/mvp-service"
 import type { User as UserType, PlayerMatchSummary, PlayerStats, TeammateStats } from "@/app/lib/types"
 import FifaCard from "@/app/components/fifa-card/fifa-card"
+import { TeammatePreferenceCard, TeammatePreferencesList } from "@/app/components/teammate-preferences"
 import FifaCardEditor from "@/app/components/fifa-card/fifa-card-editor"
 import { CountryPhoneInput } from "@/app/components/phone-input"
 import { DEFAULT_DIAL, isPlaceholderPhone, maskPhone, toE164 } from "@/app/lib/phone"
@@ -67,6 +69,8 @@ export default function PlayerProfilePage() {
   const router = useRouter()
   const { t, locale } = useTranslation()
   const playerId = params.id as string
+  // ?tab=preferences deep-links the owner's teammate preferences (post-login nudge).
+  const initialTab = useSearchParams().get("tab") === "preferences" ? "preferences" : "card"
 
   // Owner-only bits (the "Ödeme hesabım" card) key off the signed-in player.
   const { player: me } = useCurrentPlayer()
@@ -402,10 +406,11 @@ export default function PlayerProfilePage() {
                 </Badge>
               )}
             </div>
+            {!isOwner && <TeammatePreferenceCard targetId={user.id} targetName={user.name} />}
           </div>
 
-          <Tabs defaultValue="card" className="w-full">
-            <TabsList className="grid grid-cols-3 sm:grid-cols-5 mb-6">
+          <Tabs defaultValue={initialTab} className="w-full">
+            <TabsList className={`grid h-auto grid-cols-3 mb-6 ${isOwner ? "sm:grid-cols-6" : "sm:grid-cols-5"}`}>
               <TabsTrigger value="card">
                 <CreditCard className="h-4 w-4 mr-1 sm:mr-2" />
                 <span>{t("profile.tabCard")}</span>
@@ -430,6 +435,12 @@ export default function PlayerProfilePage() {
                 <span className="hidden sm:inline">{t("profile.tabProfile")}</span>
                 <span className="sm:hidden">{t("profile.tabProfile")}</span>
               </TabsTrigger>
+              {isOwner && (
+                <TabsTrigger value="preferences">
+                  <Heart className="h-4 w-4 mr-1 sm:mr-2" />
+                  <span>{t("prefs.tab")}</span>
+                </TabsTrigger>
+              )}
             </TabsList>
 
             <TabsContent value="card">
@@ -847,6 +858,12 @@ export default function PlayerProfilePage() {
                 </Card>
               )}
             </TabsContent>
+
+            {isOwner && (
+              <TabsContent value="preferences">
+                <TeammatePreferencesList />
+              </TabsContent>
+            )}
           </Tabs>
         </div>
       </div>

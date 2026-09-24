@@ -15,7 +15,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import Link from "next/link"
-import { CheckCircle2, KeyRound, Loader2, LogIn, LogOut, Search, UserRound, X } from "lucide-react"
+import { CheckCircle2, Heart, KeyRound, Loader2, LogIn, LogOut, Search, UserRound, X } from "lucide-react"
 import { CountryPhoneInput } from "@/app/components/phone-input"
 import {
   claimAccount,
@@ -25,6 +25,7 @@ import {
   type ClaimableUser,
   type ClaimResult,
 } from "@/app/actions/auth-actions"
+import { countMyTeammatePreferences } from "@/app/actions/preference-actions"
 import { DEFAULT_DIAL } from "@/app/lib/phone"
 import { isValidUsername, normalizeUsername, suggestUsername } from "@/app/lib/username"
 import { useCurrentPlayer } from "@/app/lib/use-current-player"
@@ -53,6 +54,22 @@ export function AccountPanel() {
   const [mode, setMode] = useState<Mode>("signin")
   const [submitting, setSubmitting] = useState(false)
   const [status, setStatus] = useState<Status>(null)
+
+  // Signed in with no teammate preferences yet → nudge towards the profile tab.
+  const [prefCount, setPrefCount] = useState<number | null>(null)
+  useEffect(() => {
+    if (!player) {
+      setPrefCount(null)
+      return
+    }
+    let active = true
+    countMyTeammatePreferences()
+      .then((n) => active && setPrefCount(n))
+      .catch(() => {})
+    return () => {
+      active = false
+    }
+  }, [player?.id])
 
   // sign-in fields
   const [loginUsername, setLoginUsername] = useState("")
@@ -228,6 +245,17 @@ export function AccountPanel() {
             {player.username && <p className="text-sm text-muted-foreground">@{player.username}</p>}
           </div>
           {statusBanner}
+          {prefCount === 0 && (
+            <div className="space-y-2 rounded-md border border-green-200 bg-green-50 p-3 dark:border-green-800 dark:bg-green-950/40">
+              <p className="flex items-center gap-2 text-sm font-medium text-green-800 dark:text-green-200">
+                <Heart className="h-4 w-4 shrink-0" /> {t("prefs.nudgeTitle")}
+              </p>
+              <p className="text-xs text-green-700 dark:text-green-300">{t("prefs.nudgeDesc")}</p>
+              <Button asChild size="sm" className="w-full bg-green-600 hover:bg-green-700">
+                <Link href={`/profile/${player.id}?tab=preferences`}>{t("prefs.nudgeButton")}</Link>
+              </Button>
+            </div>
+          )}
           <Button asChild variant="outline" className="w-full">
             <Link href={`/profile/${player.id}`}>
               <UserRound className="mr-2 h-4 w-4" />
