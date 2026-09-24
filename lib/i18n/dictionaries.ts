@@ -419,6 +419,8 @@ const tr = {
     nudgeTitle: "Kiminle oynamak istersin?",
     nudgeDesc: "Takım arkadaşı tercihlerini seç, takımlar kurulurken dikkate alınsın.",
     nudgeButton: "Tercihlerimi seç",
+    bannerEmpty: "Takım arkadaşı tercihlerini seç",
+    bannerCount: "{count} oyuncu seçtin · düzenle",
   },
   rate: {
     title: "Oyuncuları oyla",
@@ -1037,6 +1039,8 @@ const en: Dictionary = {
     nudgeTitle: "Who do you like playing with?",
     nudgeDesc: "Pick your teammate preferences so they are taken into account when teams are made.",
     nudgeButton: "Choose my preferences",
+    bannerEmpty: "Pick your teammate preferences",
+    bannerCount: "{count} players picked · edit",
   },
   rate: {
     title: "Rate players",

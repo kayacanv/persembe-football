@@ -33,7 +33,7 @@ export function RatingBanner() {
   if (!player || pending === 0) return null
 
   return (
-    <Link href="/oyla" className="mb-6 block">
+    <Link href="/oyla" className="mb-3 block">
       <Card className="border-primary/40 transition-colors hover:border-primary">
         <CardContent className="flex items-center gap-3 p-4">
           <Vote className="h-8 w-8 shrink-0 text-primary" />
