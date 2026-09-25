@@ -15,6 +15,7 @@ A web app for organising our weekly Thursday five-a-side (halı saha) football m
 - **MVP voting**: players vote for the man of the match after each game.
 - **Accounts**: players claim their existing profile and sign in with a username and password. Phone numbers are kept private and used only for contact.
 - **Bilingual**: Turkish (default) and English.
+- **Installable**: works as a home-screen app (PWA) with an offline fallback page.
 
 ## Tech stack
 
