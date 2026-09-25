@@ -54,6 +54,7 @@ import { AccountPanel } from "@/app/components/account-panel"
 import { AuthBadge } from "@/app/components/auth-badge"
 import { RatingBanner } from "@/app/components/rating-banner"
 import { PreferencesBanner } from "@/app/components/preferences-banner"
+import { InstallAppBanner } from "@/app/components/install-app-banner"
 
 const TAB_VALUES = ["matches", "rankings", "contact", "account"] as const
 
@@ -226,6 +227,7 @@ export default function HomePage() {
 
       <RatingBanner />
       <PreferencesBanner />
+      <InstallAppBanner />
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
         <TabsList className="grid w-full grid-cols-4 mb-6">

@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="tr">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#0a0a0a" media="(prefers-color-scheme: dark)" />
+    <title>Perşembe Halısaha</title>
+    <link rel="icon" href="/icon.svg" type="image/svg+xml" />
+    <style>
+      :root {
+        color-scheme: light dark;
+        --bg: #ffffff;
+        --fg: #0a0a0a;
+        --muted: #737373;
+        --button-bg: #171717;
+        --button-fg: #fafafa;
+      }
+      @media (prefers-color-scheme: dark) {
+        :root {
+          --bg: #0a0a0a;
+          --fg: #fafafa;
+          --muted: #a3a3a3;
+          --button-bg: #fafafa;
+          --button-fg: #171717;
+        }
+      }
+      body {
+        margin: 0;
+        min-height: 100vh;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 1.5rem;
+        box-sizing: border-box;
+        background: var(--bg);
+        color: var(--fg);
+        font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+        text-align: center;
+      }
+      main {
+        max-width: 22rem;
+      }
+      img {
+        width: 72px;
+        height: 72px;
+        border-radius: 16px;
+      }
+      h1 {
+        font-size: 1.25rem;
+        margin: 1.25rem 0 0.5rem;
+      }
+      p {
+        color: var(--muted);
+        line-height: 1.5;
+        margin: 0 0 1.5rem;
+      }
+      button {
+        font: inherit;
+        font-weight: 600;
+        border: 0;
+        border-radius: 0.5rem;
+        padding: 0.625rem 1.25rem;
+        background: var(--button-bg);
+        color: var(--button-fg);
+        cursor: pointer;
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <img src="/icon-192.png" alt="" />
+      <h1 id="title">İnternet bağlantısı yok</h1>
+      <p id="body">Perşembe Halısaha'ya şu an ulaşılamıyor. Bağlantın geri geldiğinde sayfa kendiliğinden yenilenecek.</p>
+      <button id="retry" type="button">Tekrar dene</button>
+    </main>
+    <script>
+      // Follow the language the player picked in the app (the `locale` cookie).
+      if (/(?:^|;\s*)locale=en(?:;|$)/.test(document.cookie)) {
+        document.documentElement.lang = "en"
+        document.getElementById("title").textContent = "You're offline"
+        document.getElementById("body").textContent =
+          "Perşembe Halısaha can't be reached right now. The page will reload by itself once you're back online."
+        document.getElementById("retry").textContent = "Try again"
+      }
+      document.getElementById("retry").addEventListener("click", () => location.reload())
+      window.addEventListener("online", () => location.reload())
+    </script>
+  </body>
+</html>

@@ -291,6 +291,15 @@ const tr = {
     autoHowStep4: "Para hesaba düşünce ödemen otomatik \"ödedi\" olur; genelde birkaç dakika, en geç bir saat sürer.",
     autoHowFallback: "Farklı hesaptan ya da farklı tutarda gönderirsen otomatik eşleşmez; Referans sekmesini kullan.",
   },
+  pwa: {
+    bannerTitle: "Uygulamayı telefonuna ekle",
+    bannerDescription: "Ana ekrandan tek dokunuşla aç, tam ekran kullan.",
+    install: "Yükle",
+    iosTapShare: "Tarayıcının Paylaş düğmesine",
+    share: "Paylaş",
+    iosAddToHome: "dokun, ardından “Ana Ekrana Ekle”yi seç.",
+    dismiss: "Kapat",
+  },
   piggy: {
     title: "Kumbara",
     tagline: "Oynanmayacak sahanın parası",
@@ -910,6 +919,15 @@ const en: Dictionary = {
     autoHowStep3: "Send exactly £{price}; the reference field can stay empty.",
     autoHowStep4: "Once the money lands you are marked as paid automatically; usually minutes, at most an hour.",
     autoHowFallback: "A different account or amount will not auto-match; use the Reference tab instead.",
+  },
+  pwa: {
+    bannerTitle: "Add the app to your phone",
+    bannerDescription: "Open it from your home screen in one tap, full screen.",
+    install: "Install",
+    iosTapShare: "Tap your browser's Share button",
+    share: "Share",
+    iosAddToHome: "then choose “Add to Home Screen”.",
+    dismiss: "Close",
   },
   piggy: {
     title: "Piggy Bank",

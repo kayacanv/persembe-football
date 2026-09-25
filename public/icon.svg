@@ -1,26 +1,34 @@
-<svg width="180" height="180" viewBox="0 0 180 180" fill="none" xmlns="http://www.w3.org/2000/svg">
-  <style>
-    @media (prefers-color-scheme: light) {
-      .background { fill: black; }
-      .foreground { fill: white; }
-    }
-    @media (prefers-color-scheme: dark) {
-      .background { fill: white; }
-      .foreground { fill: black; }
-    }
-  </style>
-  <g clip-path="url(#clip0_7960_43945)">
-    <rect class="background" width="180" height="180" rx="37" />
-    <g style="transform: scale(95%); transform-origin: center">
-      <path class="foreground"
-        d="M101.141 53H136.632C151.023 53 162.689 64.6662 162.689 79.0573V112.904H148.112V79.0573C148.112 78.7105 148.098 78.3662 148.072 78.0251L112.581 112.898C112.701 112.902 112.821 112.904 112.941 112.904H148.112V126.672H112.941C98.5504 126.672 86.5638 114.891 86.5638 100.5V66.7434H101.141V100.5C101.141 101.15 101.191 101.792 101.289 102.422L137.56 66.7816C137.255 66.7563 136.945 66.7434 136.632 66.7434H101.141V53Z" />
-      <path class="foreground"
-        d="M65.2926 124.136L14 66.7372H34.6355L64.7495 100.436V66.7372H80.1365V118.47C80.1365 126.278 70.4953 129.958 65.2926 124.136Z" />
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512">
+  <defs>
+    <linearGradient id="grass" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#22c55e"/>
+      <stop offset="100%" stop-color="#15803d"/>
+    </linearGradient>
+    <clipPath id="tile"><rect width="512" height="512" rx="112"/></clipPath>
+  </defs>
+  <g clip-path="url(#tile)">
+    <rect width="512" height="512" fill="url(#grass)"/>
+    <rect x="0" y="0" width="64" height="512" fill="#000" opacity="0.07"/>
+    <rect x="128" y="0" width="64" height="512" fill="#000" opacity="0.07"/>
+    <rect x="256" y="0" width="64" height="512" fill="#000" opacity="0.07"/>
+    <rect x="384" y="0" width="64" height="512" fill="#000" opacity="0.07"/>
+    <ellipse cx="256" cy="402.02" rx="126.98" ry="25.4" fill="#000" opacity="0.22"/>
+  </g>
+  <g transform="translate(97.28 97.28) scale(1.5872)">
+    <defs>
+      <radialGradient id="ballShade" gradientUnits="userSpaceOnUse" cx="72" cy="60" r="150">
+        <stop offset="0%" stop-color="#ffffff"/>
+        <stop offset="60%" stop-color="#f3f4f6"/>
+        <stop offset="100%" stop-color="#cbd5e1"/>
+      </radialGradient>
+    </defs>
+    <circle cx="100" cy="100" r="96" fill="#111827"/>
+    <g fill="url(#ballShade)" stroke="#111827" stroke-width="5" stroke-linejoin="round">
+      <polygon points="100,70 100,38 128.53,17.27 169.87,47.3 158.97,80.84 128.53,90.73"/>
+      <polygon points="128.53,90.73 158.97,80.84 187.5,101.57 171.71,150.16 136.45,150.16 117.63,124.27"/>
+      <polygon points="117.63,124.27 136.45,150.16 125.55,183.7 74.45,183.7 63.55,150.16 82.37,124.27"/>
+      <polygon points="82.37,124.27 63.55,150.16 28.29,150.16 12.5,101.57 41.03,80.84 71.47,90.73"/>
+      <polygon points="71.47,90.73 41.03,80.84 30.13,47.3 71.47,17.27 100,38 100,70"/>
     </g>
   </g>
-  <defs>
-    <clipPath id="clip0_7960_43945">
-      <rect width="180" height="180" fill="white" />
-    </clipPath>
-  </defs>
 </svg>
