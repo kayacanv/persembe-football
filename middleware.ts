@@ -89,7 +89,10 @@ async function updateSession(request: NextRequest, supabaseUrl: string, supabase
 // Every page, so the session cookie stays fresh site-wide. Static assets are
 // excluded because they cost a pointless auth round-trip, and /api with them:
 // the webhooks and cron there authenticate themselves by signature or secret and
-// must not be slowed down by a session refresh they never read.
+// must not be slowed down by a session refresh they never read. The PWA files
+// (service worker, manifest, offline page) are static too.
 export const config = {
-  matcher: ["/((?!api|_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico)$).*)"],
+  matcher: [
+    "/((?!api|_next/static|_next/image|favicon.ico|sw.js|manifest.webmanifest|offline.html|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico)$).*)",
+  ],
 }
