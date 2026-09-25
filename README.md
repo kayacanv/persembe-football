@@ -1,6 +1,6 @@
 # Perşembe Halısaha
 
-A web app for organising our weekly Thursday five-a-side (halı saha) football match: sign-ups, payments, team building, player cards and MVP voting.
+A web app for organising our weekly Thursday halı saha (small-sided astroturf) football match: sign-ups, payments, team building, player cards and MVP voting.
 
 **Live at [halisaha.klpir.com](https://halisaha.klpir.com)**
 
