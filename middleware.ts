@@ -38,7 +38,7 @@ export async function middleware(request: NextRequest) {
           <p>Lütfen aşağıdaki ortam değişkenlerinin doğru yapılandırıldığından emin olun:</p>
           <pre>NEXT_PUBLIC_SUPABASE_URL
 NEXT_PUBLIC_SUPABASE_ANON_KEY</pre>
-          <p>Bu değişkenler Vercel projenizin ortam değişkenleri bölümünde ayarlanmalıdır.</p>
+          <p>Bu değişkenler sunucunun ortam değişkenlerinde (yerelde <code>.env.local</code> dosyasında) ayarlanmalıdır.</p>
         </body>
       </html>`,
       {

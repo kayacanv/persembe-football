@@ -9,8 +9,8 @@ export const runtime = "nodejs"
 // transactions and runs the same matcher the webhook uses, to catch anything a
 // missed webhook delivery didn't record. Idempotent.
 //
-// Auth: Vercel Cron sends `Authorization: Bearer ${CRON_SECRET}` automatically
-// when CRON_SECRET is set. Also accepts `?secret=` for manual runs.
+// Auth: the Supabase pg_cron job (add-starling-sync-cron.sql) sends
+// `Authorization: Bearer ${CRON_SECRET}`. Also accepts `?secret=` for manual runs.
 function authorized(req: NextRequest): boolean {
   const secret = process.env.CRON_SECRET
   if (!secret) {
@@ -61,5 +61,5 @@ export async function GET(req: NextRequest) {
   }
 }
 
-// Vercel Cron issues GET; POST kept for manual/curl parity.
+// pg_cron issues GET; POST kept for manual/curl parity.
 export const POST = GET

@@ -13,7 +13,6 @@ const inter = Inter({ subsets: ["latin", "latin-ext"] })
 export const metadata: Metadata = {
   title: "Perşembe Halısaha",
   description: "Perşembe günü halı saha maçı organizasyonu",
-  generator: "v0.dev",
   applicationName: "Perşembe Halısaha",
   icons: {
     icon: [

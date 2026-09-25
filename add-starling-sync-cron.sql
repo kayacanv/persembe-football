@@ -1,14 +1,14 @@
--- Starling sync backstop via Supabase pg_cron (alternative to Vercel Cron).
+-- Starling sync backstop via Supabase pg_cron.
 --
--- Use this if Vercel's plan restricts cron frequency. It pings the deployed
--- Next.js route, which fetches recent Starling transactions and reconciles them.
+-- Every 15 minutes it pings the deployed Next.js route, which fetches recent
+-- Starling transactions and reconciles them.
 -- The webhook still does the real-time work; this is just a safety net.
 --
 -- Requires the pg_cron + pg_net extensions (both available on Supabase):
 create extension if not exists pg_cron;
 create extension if not exists pg_net;
 
--- IMPORTANT: replace <CRON_SECRET> with the same value set in Vercel env, and
+-- IMPORTANT: replace <CRON_SECRET> with the same value set in the app's env, and
 -- confirm the deployed host. The secret lives in your own database only.
 
 do $$
