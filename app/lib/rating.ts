@@ -70,8 +70,13 @@ function trimmedMean(values: number[]): number {
 const MIN_POSITION_RATING = 70
 
 // All votes for one player → the public row. `votes` holds one entry per
-// (voter, stat); every saved rating covers all 8 stats.
-export function computePlayerRating(votes: { voter_id: string; stat: RatingStat; value: number }[]): PlayerRating {
+// (voter, stat). Only voters who have given all 8 stats count: bulk voting
+// saves one stat at a time, and a half-finished rating stays out of the numbers.
+export function computePlayerRating(allVotes: { voter_id: string; stat: RatingStat; value: number }[]): PlayerRating {
+  const statCount = new Map<string, number>()
+  for (const v of allVotes) statCount.set(v.voter_id, (statCount.get(v.voter_id) ?? 0) + 1)
+  const votes = allVotes.filter((v) => statCount.get(v.voter_id) === RATING_STATS.length)
+
   const voters = new Set(votes.map((v) => v.voter_id)).size
   const empty: PlayerRating = {
     voters,

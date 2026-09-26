@@ -2,7 +2,8 @@
 
 // Crowd-voted player stats (migration add-stat-ratings.sql, plan-ratings.md).
 //
-// A signed-in player rates teammates on all 8 stats at once. Who can be rated:
+// A signed-in player rates teammates on all 8 stats at once (/oyla), or one stat
+// for everyone at a time (/bulk-vote). Who can be rated:
 // players with a real phone who played in at least one of the last
 // RECENT_MATCH_WINDOW finished matches and shared a match with the voter in the
 // last SHARED_WINDOW_DAYS. The queue puts the players you played with most first.
@@ -20,6 +21,8 @@ import {
   isRatingStat,
   isRatingValue,
   type MyRating,
+  type RatingStat,
+  type RatingValue,
   type StatValues,
 } from "../lib/rating-stats"
 
@@ -36,7 +39,7 @@ export type QueuePlayer = {
   card_position: string | null
   shared: number // matches played together in the last SHARED_WINDOW_DAYS
   status: QueueStatus
-  values: StatValues | null
+  values: Partial<StatValues> // the voter's votes so far; all 8 once "rated"
 }
 
 export type RatingQueue = { queue: QueuePlayer[]; mine: MyRating[] }
@@ -166,7 +169,7 @@ export async function getRatingQueue(): Promise<RatingQueue | null> {
         card_position: u.card_position ?? null,
         shared: shared.get(u.id) ?? 0,
         status: complete ? "rated" : skippedAt.has(u.id) ? "skipped" : "todo",
-        values: complete ? values : null,
+        values: values ?? {},
       }
     })
 
@@ -205,9 +208,10 @@ export async function countPendingRatings(): Promise<number> {
 
 // For the "Oylarım" tab on someone else's profile. `canRate` when the target is
 // rateable for the viewer, or already rated by them (an old rating stays editable).
+// `values` may be partial when the viewer started on /bulk-vote.
 export async function getMyRatingFor(
   targetId: string,
-): Promise<{ canRate: boolean; values: StatValues | null; mine: MyRating[] }> {
+): Promise<{ canRate: boolean; values: Partial<StatValues> | null; mine: MyRating[] }> {
   const empty = { canRate: false, values: null, mine: [] }
   const supabase = createServerClient()
   const viewer = await getCurrentPlayer()
@@ -218,9 +222,8 @@ export async function getMyRatingFor(
       getRateable(supabase, viewer.id),
       getMyValues(supabase, viewer.id),
     ])
-    const values = byTarget.get(targetId)
-    const complete = isCompleteRating(values)
-    return { canRate: complete || shared.has(targetId), values: complete ? values : null, mine }
+    const values = byTarget.get(targetId) ?? null
+    return { canRate: !!values || shared.has(targetId), values, mine }
   } catch (error) {
     console.error("getMyRatingFor:", error)
     return empty
@@ -235,16 +238,7 @@ export async function saveRating(targetId: string, values: StatValues): Promise<
   if (!isCompleteRating(values)) return { ok: false }
 
   try {
-    const { count } = await supabase
-      .from("stat_ratings")
-      .select("stat", { count: "exact", head: true })
-      .eq("voter_id", viewer.id)
-      .eq("target_id", targetId)
-
-    if (!count) {
-      const shared = await getRateable(supabase, viewer.id)
-      if (!shared.has(targetId)) return { ok: false }
-    }
+    if (!(await mayRate(supabase, viewer.id, targetId))) return { ok: false }
 
     const now = new Date().toISOString()
     const { error } = await supabase.from("stat_ratings").upsert(
@@ -265,6 +259,55 @@ export async function saveRating(targetId: string, values: StatValues): Promise<
     console.error("saveRating:", error)
     return { ok: false }
   }
+}
+
+// Bulk voting: set one stat for one target, or clear it with `null`. The rating
+// may stay partial; it counts toward the public numbers once all 8 stats are in.
+export async function saveStatVote(
+  targetId: string,
+  stat: RatingStat,
+  value: RatingValue | null,
+): Promise<{ ok: boolean }> {
+  const supabase = createServerClient()
+  const viewer = await getCurrentPlayer()
+  if (!supabase || !viewer || !targetId || viewer.id === targetId) return { ok: false }
+  if (!isRatingStat(stat) || (value !== null && !isRatingValue(value))) return { ok: false }
+
+  try {
+    if (value === null) {
+      const { error } = await supabase
+        .from("stat_ratings")
+        .delete()
+        .eq("voter_id", viewer.id)
+        .eq("target_id", targetId)
+        .eq("stat", stat)
+      if (error) throw new Error(error.message)
+    } else {
+      if (!(await mayRate(supabase, viewer.id, targetId))) return { ok: false }
+      const { error } = await supabase
+        .from("stat_ratings")
+        .upsert({ voter_id: viewer.id, target_id: targetId, stat, value, updated_at: new Date().toISOString() })
+      if (error) throw new Error(error.message)
+    }
+
+    await recomputePlayerRating(supabase, targetId)
+    return { ok: true }
+  } catch (error) {
+    console.error("saveStatVote:", error)
+    return { ok: false }
+  }
+}
+
+// Rateable now, or already has votes from this voter (an old rating stays editable).
+async function mayRate(supabase: ServiceClient, voterId: string, targetId: string): Promise<boolean> {
+  const { count } = await supabase
+    .from("stat_ratings")
+    .select("stat", { count: "exact", head: true })
+    .eq("voter_id", voterId)
+    .eq("target_id", targetId)
+  if (count) return true
+  const shared = await getRateable(supabase, voterId)
+  return shared.has(targetId)
 }
 
 // Rebuild one player's public player_ratings row from all votes for them.

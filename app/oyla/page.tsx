@@ -3,11 +3,12 @@
 // Player rating page (plan-ratings.md). One player per screen, all 8 stats on
 // one scrolling screen; every stat must be answered before saving, but the
 // whole player can be skipped. The queue starts with the players you played
-// with most. Votes are private — see app/actions/rating-actions.ts.
+// with most. Stats already voted on /bulk-vote come pre-filled. Votes are
+// private — see app/actions/rating-actions.ts.
 
 import { useEffect, useState } from "react"
 import Link from "next/link"
-import { ArrowLeft, CheckCircle2, Loader2, Lock, LogIn, SkipForward, Users } from "lucide-react"
+import { ArrowLeft, CheckCircle2, LayoutList, Loader2, Lock, LogIn, SkipForward, Users } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { toast } from "@/components/ui/use-toast"
@@ -19,7 +20,7 @@ import {
   type QueuePlayer,
   type RatingQueue,
 } from "@/app/actions/rating-actions"
-import { RATING_STATS, isCompleteRating, type MyRating } from "@/app/lib/rating-stats"
+import { RATING_STATS, STAT_SLUGS, isCompleteRating, type MyRating } from "@/app/lib/rating-stats"
 import { StatRatingForm, type DraftValues } from "@/app/components/stat-rating-form"
 import { useCurrentPlayer } from "@/app/lib/use-current-player"
 import { useTranslation } from "@/lib/i18n/useTranslation"
@@ -55,9 +56,9 @@ export default function RatePage() {
   const ratedCount = queue.filter((p) => p.status === "rated").length
   const answered = RATING_STATS.filter((s) => draft[s] !== undefined).length
 
-  // Fresh form for each player.
+  // Fresh form for each player, with any stats they already got on /bulk-vote.
   useEffect(() => {
-    setDraft({})
+    setDraft({ ...current?.values })
     window.scrollTo({ top: 0, behavior: "smooth" })
   }, [current?.id])
 
@@ -115,6 +116,15 @@ export default function RatePage() {
     <p className="flex items-center gap-1 text-xs text-muted-foreground">
       <Lock className="h-3 w-3 shrink-0" /> {t("rate.privacy")}
     </p>
+  )
+
+  const bulkLink = (
+    <Button asChild variant="outline" size="sm" className="w-full">
+      <Link href={`/bulk-vote?attribute=${STAT_SLUGS.pac}`}>
+        <LayoutList className="mr-2 h-4 w-4" />
+        {t("bulk.open")}
+      </Link>
+    </Button>
   )
 
   if (meLoading || loading) {
@@ -181,6 +191,7 @@ export default function RatePage() {
                 </Link>
               ))}
             </div>
+            {bulkLink}
             {privacy}
           </CardContent>
         </Card>
@@ -203,6 +214,8 @@ export default function RatePage() {
           />
         </div>
       </div>
+
+      <div className="mb-3">{bulkLink}</div>
 
       <Card className="mb-3">
         <CardContent className="flex items-center gap-3 p-3">

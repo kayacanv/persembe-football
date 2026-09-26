@@ -85,9 +85,11 @@ export default function PlayerProfilePage() {
   const isOwner = !!me && me.id === playerId
 
   // The viewer's own private rating of this player ("Oylarım" tab), when they can rate them.
-  const [myRating, setMyRating] = useState<{ canRate: boolean; values: StatValues | null; mine: MyRating[] } | null>(
-    null,
-  )
+  const [myRating, setMyRating] = useState<{
+    canRate: boolean
+    values: Partial<StatValues> | null
+    mine: MyRating[]
+  } | null>(null)
   useEffect(() => {
     setMyRating(null)
     if (!me || me.id === playerId) return

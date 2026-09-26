@@ -1,7 +1,8 @@
 "use client"
 
 // "Oylarım" tab on someone else's profile: the viewer's own 8 values for this
-// player, editable. Only the viewer ever sees it.
+// player, editable. Only the viewer ever sees it. A rating started on
+// /bulk-vote arrives partial and is finished here.
 
 import { useState } from "react"
 import { Loader2, Lock, Save } from "lucide-react"
@@ -22,7 +23,7 @@ export function MyVotesPanel({
 }: {
   targetId: string
   targetName: string
-  initialValues: StatValues | null
+  initialValues: Partial<StatValues> | null
   mine: MyRating[]
   onSaved: (values: StatValues) => void
 }) {
@@ -31,7 +32,8 @@ export function MyVotesPanel({
   const [saving, setSaving] = useState(false)
 
   const answered = RATING_STATS.filter((s) => draft[s] !== undefined).length
-  const unchanged = !!initialValues && RATING_STATS.every((s) => draft[s] === initialValues[s])
+  const complete = isCompleteRating(initialValues)
+  const unchanged = complete && RATING_STATS.every((s) => draft[s] === initialValues[s])
 
   const handleSave = async () => {
     if (!isCompleteRating(draft)) return
@@ -53,7 +55,11 @@ export function MyVotesPanel({
       <CardHeader>
         <CardTitle>{t("rate.myVotesTitle")}</CardTitle>
         <CardDescription>
-          {initialValues ? t("rate.myVotesDesc", { name: targetName }) : t("rate.myVotesEmpty", { name: targetName })}
+          {complete
+            ? t("rate.myVotesDesc", { name: targetName })
+            : initialValues
+              ? t("rate.myVotesPartial", { name: targetName })
+              : t("rate.myVotesEmpty", { name: targetName })}
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-3">

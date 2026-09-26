@@ -10,6 +10,22 @@ export type RatingValue = (typeof RATING_VALUES)[number]
 
 export type StatValues = Record<RatingStat, RatingValue>
 
+// URL name of each stat for the bulk voting pages (/bulk-vote?attribute=pace).
+export const STAT_SLUGS: Record<RatingStat, string> = {
+  pac: "pace",
+  sho: "shooting",
+  pas: "passing",
+  dri: "dribbling",
+  def: "defending",
+  phy: "physical",
+  tw: "teamwork",
+  wr: "work-rate",
+}
+
+export function statFromSlug(slug: string | undefined): RatingStat | null {
+  return RATING_STATS.find((s) => STAT_SLUGS[s] === slug) ?? null
+}
+
 export function isRatingStat(s: unknown): s is RatingStat {
   return typeof s === "string" && (RATING_STATS as readonly string[]).includes(s)
 }
