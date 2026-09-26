@@ -564,6 +564,25 @@ export async function getUserNames(): Promise<Array<{ id: string; name: string }
   return data || []
 }
 
+// Every player for the header search box: name plus photo for the avatar in each
+// suggestion. Like getUserNames, no phone/email is selected.
+export async function getPlayerDirectory(): Promise<Array<Pick<User, "id" | "name" | "photo_url">>> {
+  const supabase = getSupabaseBrowserClient()
+  if (!supabase) {
+    console.error("Supabase client is not initialized")
+    return []
+  }
+
+  const { data, error } = await supabase.from("users").select("id, name, photo_url").order("name")
+
+  if (error) {
+    console.error("Error fetching player directory:", error)
+    return []
+  }
+
+  return data || []
+}
+
 // Phone writes used to live here, on the anon-key browser client. They now run
 // as server actions (updatePhone / createPlayerWithPhone in
 // app/actions/auth-actions.ts) so that a number can also be kept in step with the

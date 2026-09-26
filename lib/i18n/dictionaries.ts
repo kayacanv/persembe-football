@@ -114,6 +114,11 @@ const tr = {
     errorSelectPlayer: "Lütfen bir oyuncu seçin.",
     errorGeneric: "Bir hata oluştu. Lütfen tekrar deneyin.",
   },
+  playerSearch: {
+    label: "Oyuncu profili ara",
+    placeholder: "Oyuncu ara...",
+    clear: "Aramayı temizle",
+  },
   auth: {
     title: "Hesabım",
     myProfile: "Profilim",
@@ -744,6 +749,11 @@ const en: Dictionary = {
     errorNameRequired: "Please enter a name.",
     errorSelectPlayer: "Please select a player.",
     errorGeneric: "Something went wrong. Please try again.",
+  },
+  playerSearch: {
+    label: "Find a player's profile",
+    placeholder: "Search players...",
+    clear: "Clear search",
   },
   auth: {
     title: "My Account",

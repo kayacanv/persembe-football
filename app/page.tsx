@@ -55,6 +55,7 @@ import { AuthBadge } from "@/app/components/auth-badge"
 import { RatingBanner } from "@/app/components/rating-banner"
 import { PreferencesBanner } from "@/app/components/preferences-banner"
 import { InstallAppBanner } from "@/app/components/install-app-banner"
+import { PlayerSearch } from "@/app/components/player-search"
 
 const TAB_VALUES = ["matches", "rankings", "contact", "account"] as const
 
@@ -198,6 +199,8 @@ export default function HomePage() {
           <LanguageSwitcher />
         </div>
       </div>
+
+      <PlayerSearch className="mb-6" />
 
       {/* Kumbara — shown above the tabs so an open whip-round is impossible to miss. */}
       {piggy && (

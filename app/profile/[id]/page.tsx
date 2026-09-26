@@ -62,6 +62,7 @@ import FifaCard from "@/app/components/fifa-card/fifa-card"
 import { TeammatePreferenceCard, TeammatePreferencesList } from "@/app/components/teammate-preferences"
 import { MyVotesPanel } from "@/app/components/my-votes-panel"
 import { PlayerRatingSummary } from "@/app/components/player-rating-summary"
+import { PlayerSearch } from "@/app/components/player-search"
 import { MIN_VOTERS, hasRatings } from "@/app/lib/rating"
 import { getMyRatingFor } from "@/app/actions/rating-actions"
 import type { MyRating, StatValues } from "@/app/lib/rating-stats"
@@ -324,13 +325,14 @@ export default function PlayerProfilePage() {
 
   return (
     <div className="container max-w-4xl mx-auto px-4 py-8">
-      <div className="flex justify-between items-center mb-8">
+      <div className="flex justify-between items-center gap-4 mb-8">
         <Link href="/" passHref>
           <Button variant="ghost" size="sm">
             <ArrowLeft className="mr-2 h-4 w-4" />
             {t("common.back")}
           </Button>
         </Link>
+        <PlayerSearch className="w-full max-w-xs" />
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-8 mb-8">
