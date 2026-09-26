@@ -61,6 +61,7 @@ import type { User as UserType, PlayerMatchSummary, PlayerStats, TeammateStats }
 import FifaCard from "@/app/components/fifa-card/fifa-card"
 import { TeammatePreferenceCard, TeammatePreferencesList } from "@/app/components/teammate-preferences"
 import { MyVotesPanel } from "@/app/components/my-votes-panel"
+import { PlayerRatingSummary } from "@/app/components/player-rating-summary"
 import { MIN_VOTERS, hasRatings } from "@/app/lib/rating"
 import { getMyRatingFor } from "@/app/actions/rating-actions"
 import type { MyRating, StatValues } from "@/app/lib/rating-stats"
@@ -342,6 +343,7 @@ export default function PlayerProfilePage() {
               {t("rate.cardProgress", { count: Math.min(user.rating?.voters ?? 0, MIN_VOTERS), total: MIN_VOTERS })}
             </p>
           )}
+          <PlayerRatingSummary rating={user.rating} />
           <input
             type="file"
             accept="image/jpeg, image/png, image/webp"

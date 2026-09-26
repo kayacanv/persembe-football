@@ -15,8 +15,17 @@ export const POSITION_GROUPS = ["cf", "cm", "wm", "fb", "cb"] as const
 export type PositionGroup = (typeof POSITION_GROUPS)[number]
 export type PositionRatings = Record<PositionGroup, number>
 
-// Public row from player_ratings; the group ratings are null until MIN_VOTERS.
-export type PlayerRating = { voters: number } & Record<PositionGroup, number | null>
+// The six stats shown on the card and profile (teamwork and work rate are
+// voted and weighted, but not shown).
+export const CARD_STATS = ["pac", "sho", "pas", "dri", "def", "phy"] as const
+export type CardStat = (typeof CARD_STATS)[number]
+export type CardStats = Record<CardStat, number>
+
+// Public row from player_ratings; everything but `voters` is null until MIN_VOTERS.
+export type PlayerRating = { voters: number } & Record<PositionGroup | CardStat, number | null>
+
+// Columns to embed as `player_ratings (...)` when loading users.
+export const PLAYER_RATING_COLUMNS = ["voters", ...POSITION_GROUPS, ...CARD_STATS].join(", ")
 
 // Weights in % per position group (each row sums to 100).
 const WEIGHTS: Record<PositionGroup, Partial<Record<RatingStat, number>>> = {
@@ -64,7 +73,13 @@ const MIN_POSITION_RATING = 70
 // (voter, stat); every saved rating covers all 8 stats.
 export function computePlayerRating(votes: { voter_id: string; stat: RatingStat; value: number }[]): PlayerRating {
   const voters = new Set(votes.map((v) => v.voter_id)).size
-  const empty: PlayerRating = { voters, cf: null, cm: null, wm: null, fb: null, cb: null }
+  const empty: PlayerRating = {
+    voters,
+    ...(Object.fromEntries([...POSITION_GROUPS, ...CARD_STATS].map((k) => [k, null])) as Record<
+      PositionGroup | CardStat,
+      null
+    >),
+  }
   if (voters < MIN_VOTERS) return empty
 
   const stat = {} as Record<RatingStat, number>
@@ -79,6 +94,7 @@ export function computePlayerRating(votes: { voter_id: string; stat: RatingStat;
     const raw = Object.entries(WEIGHTS[group]).reduce((sum, [s, w]) => sum + stat[s as RatingStat] * (w as number), 0) / 100
     result[group] = Math.max(MIN_POSITION_RATING, Math.min(99, Math.round(raw)))
   }
+  for (const s of CARD_STATS) result[s] = Math.round(stat[s])
   return result
 }
 
@@ -88,8 +104,13 @@ export function oneRating(embed: unknown): PlayerRating | null {
   return row && typeof row === "object" ? (row as PlayerRating) : null
 }
 
-export function hasRatings(r?: PlayerRating | null): r is { voters: number } & PositionRatings {
+export function hasRatings(r?: PlayerRating | null): r is PlayerRating & PositionRatings {
   return !!r && POSITION_GROUPS.every((g) => typeof r[g] === "number")
+}
+
+// The six stat averages, or null until enough voters.
+export function cardStats(r?: PlayerRating | null): CardStats | null {
+  return r && CARD_STATS.every((s) => typeof r[s] === "number") ? (r as CardStats) : null
 }
 
 // The overall shown on the card: the rating at the player's chosen position.

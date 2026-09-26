@@ -5,7 +5,7 @@ import {
   deletePlayerPhoto as deleteOldPhotoFromStorage,
 } from "./storage-service"
 import { parse } from "date-fns"
-import { oneRating } from "./rating"
+import { PLAYER_RATING_COLUMNS, oneRating } from "./rating"
 
 // Get user by ID
 export async function getUserById(userId: string): Promise<User | null> {
@@ -17,7 +17,7 @@ export async function getUserById(userId: string): Promise<User | null> {
 
   const { data, error } = await supabase
     .from("users")
-    .select("*, player_ratings (voters, cf, cm, wm, fb, cb)")
+    .select(`*, player_ratings (${PLAYER_RATING_COLUMNS})`)
     .eq("id", userId)
     .single()
 

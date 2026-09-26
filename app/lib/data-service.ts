@@ -3,7 +3,7 @@ import { MAX_ACTIVE_PLAYERS } from "./constants"
 import { unlinkBankPaymentsForMatchPlayer } from "../actions/starling-actions"
 import type { Match, MatchStatus, Position, PlayerWithDetails, Team, PlayerStatus, PlayerRankingStats } from "./types"
 import type { User } from "./types"
-import { oneRating, playerStrength } from "./rating"
+import { PLAYER_RATING_COLUMNS, oneRating, playerStrength } from "./rating"
 
 // Get all matches
 export async function getMatches(): Promise<Match[]> {
@@ -114,7 +114,7 @@ export async function getPlayersForMatch(matchId: string): Promise<PlayerWithDet
         card_photo_y,
         card_photo_fade,
         card_baked,
-        player_ratings (voters, cf, cm, wm, fb, cb)
+        player_ratings (${PLAYER_RATING_COLUMNS})
       )
     `)
     .eq("match_id", matchId)

@@ -454,6 +454,8 @@ const tr = {
     bannerTitle: "Oyuncuları oyla",
     bannerDesc: "{count} oyuncu oyunu bekliyor",
     cardProgress: "Güç puanı oylanıyor: {count}/{total} kişi oyladı",
+    summaryStats: "Stat ortalamaları",
+    summaryPositions: "Pozisyon reytingleri",
     stats: {
       pac: { label: "Hız", hint: "Ne kadar hızlı" },
       sho: { label: "Şut", hint: "Bitiricilik, şut gücü" },
@@ -1083,6 +1085,8 @@ const en: Dictionary = {
     bannerTitle: "Rate players",
     bannerDesc: "{count} players are waiting for your vote",
     cardProgress: "Rating is being voted: {count}/{total} people have voted",
+    summaryStats: "Stat averages",
+    summaryPositions: "Position ratings",
     stats: {
       pac: { label: "Pace", hint: "How fast" },
       sho: { label: "Shooting", hint: "Finishing, shot power" },

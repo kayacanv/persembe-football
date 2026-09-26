@@ -1,5 +1,5 @@
 import type { User } from "@/app/lib/types"
-import { hasRatings, overallFor, type PlayerRating, type PositionRatings } from "@/app/lib/rating"
+import { cardStats, overallFor, type CardStats, type PlayerRating } from "@/app/lib/rating"
 import type { CardTier } from "@/app/config/card-tiers"
 
 export type { CardTier }
@@ -18,8 +18,8 @@ export interface CardData {
   overall: number | null
   position: string // FIFA slot, e.g. "ST" | "CB" | "GK"
   jerseyNumber?: number | null // editable squad/shirt number (1-99); null = none
-  /** The five voted position ratings shown in the stat band; null until enough voters. */
-  positionRatings: PositionRatings | null
+  /** The six voted stat averages shown in the stat band; null until enough voters. */
+  stats: CardStats | null
   rating: PlayerRating | null
   nation?: string | null // ISO-ish code -> /flags/<code>.svg
   clubBadgeUrl?: string | null
@@ -46,8 +46,8 @@ function fallbackPosition(position?: string | null): string {
 
 /**
  * Map a DB User into the normalized CardData the component renders.
- * Cosmetic fields come from the card_* columns; the overall and the position
- * ratings come from the crowd-voted player_ratings row (see app/lib/rating.ts).
+ * Cosmetic fields come from the card_* columns; the overall and the stat
+ * averages come from the crowd-voted player_ratings row (see app/lib/rating.ts).
  */
 export function userToCardData(user: Partial<User> & { name: string }): CardData {
   const position = user.card_position || fallbackPosition(user.position)
@@ -58,7 +58,7 @@ export function userToCardData(user: Partial<User> & { name: string }): CardData
     overall: overallFor(rating, position),
     position,
     jerseyNumber: user.jersey_number ?? null,
-    positionRatings: hasRatings(rating) ? rating : null,
+    stats: cardStats(rating),
     rating,
     nation: user.card_nation ?? "tr",
     clubBadgeUrl: user.club_badge_url ?? null,

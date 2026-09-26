@@ -2,9 +2,10 @@
 --
 -- One row per rated player, recomputed by app/actions/rating-actions.ts after
 -- every saved rating. Holds only what the card shows: the five position
--- ratings (70-99: rounded weighted mix of the votes, floored at 70) and how many people have rated the player.
+-- ratings (70-99: rounded weighted mix of the votes, floored at 70) and how
+-- many people have rated the player.
 -- Position ratings stay NULL until MIN_VOTERS have voted (the card shows "?").
--- The per-stat averages are deliberately not stored anywhere public.
+-- The six card stat averages were added later (add-player-rating-stats.sql).
 --
 -- Everyone can read it; nobody but the service role can write it.
 
