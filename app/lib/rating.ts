@@ -2,7 +2,7 @@
 // plus the strength and play-style values team building reads.
 //
 // Pipeline: each stat = trimmed mean of the voters' values (60-99) → five
-// position ratings = weighted mix of the 8 stats, rounded (same 60-99 scale).
+// position ratings = weighted mix of the 8 stats, rounded and kept within 70-99.
 // The player's overall is the rating at their self-chosen card position.
 
 import type { User } from "./types"
@@ -57,6 +57,9 @@ function trimmedMean(values: number[]): number {
   return kept.reduce((sum, v) => sum + v, 0) / kept.length
 }
 
+// Position ratings never show below 70 (player_ratings enforces 70-99).
+const MIN_POSITION_RATING = 70
+
 // All votes for one player → the public row. `votes` holds one entry per
 // (voter, stat); every saved rating covers all 8 stats.
 export function computePlayerRating(votes: { voter_id: string; stat: RatingStat; value: number }[]): PlayerRating {
@@ -74,7 +77,7 @@ export function computePlayerRating(votes: { voter_id: string; stat: RatingStat;
   const result = { ...empty }
   for (const group of POSITION_GROUPS) {
     const raw = Object.entries(WEIGHTS[group]).reduce((sum, [s, w]) => sum + stat[s as RatingStat] * (w as number), 0) / 100
-    result[group] = Math.round(raw)
+    result[group] = Math.max(MIN_POSITION_RATING, Math.min(99, Math.round(raw)))
   }
   return result
 }
