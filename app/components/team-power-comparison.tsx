@@ -27,7 +27,7 @@ export default function TeamPowerComparison({ teamAPlayers, teamBPlayers }: Team
   const totalPower = teamAPower + teamBPower
 
   // Indicator position (0-100%): 50% = equal, <50% White Team stronger, >50% Black Team stronger.
-  // Overalls sit around 70-99, so the gap (not the ratio) drives it; ~25 points reads as clearly one-sided.
+  // Overalls sit around 60-99, so the gap (not the ratio) drives it; ~25 points reads as clearly one-sided.
   const getIndicatorPosition = () => {
     if (totalPower === 0) return 50 // Center if no players
     return 50 + 45 * Math.tanh((teamBPower - teamAPower) / 25)

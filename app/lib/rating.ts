@@ -2,8 +2,8 @@
 // plus the strength and play-style values team building reads.
 //
 // Pipeline: each stat = trimmed mean of the voters' values (60-99) → five
-// position ratings = weighted mix of the 8 stats → rescaled 60-99 → 70-99 for
-// display. The player's overall is the rating at their self-chosen card position.
+// position ratings = weighted mix of the 8 stats, rounded (same 60-99 scale).
+// The player's overall is the rating at their self-chosen card position.
 
 import type { User } from "./types"
 import { RATING_STATS, type RatingStat } from "./rating-stats"
@@ -20,11 +20,11 @@ export type PlayerRating = { voters: number } & Record<PositionGroup, number | n
 
 // Weights in % per position group (each row sums to 100).
 const WEIGHTS: Record<PositionGroup, Partial<Record<RatingStat, number>>> = {
-  cf: { pac: 15, sho: 30, pas: 10, dri: 20, phy: 10, tw: 10, wr: 5 },
-  cm: { pac: 5, sho: 5, pas: 25, dri: 15, def: 10, phy: 10, tw: 15, wr: 15 },
-  wm: { pac: 25, sho: 10, pas: 15, dri: 20, phy: 5, tw: 10, wr: 15 },
-  fb: { pac: 20, pas: 10, dri: 5, def: 25, phy: 10, tw: 10, wr: 20 },
-  cb: { pac: 5, pas: 10, def: 35, phy: 25, tw: 15, wr: 10 },
+  cf: { pac: 20, sho: 30, pas: 15, dri: 15, phy: 10, tw: 5, wr: 5 },
+  cm: { pac: 15, sho: 13, pas: 35, dri: 15, def: 5, phy: 7, tw: 5, wr: 5 },
+  wm: { pac: 25, sho: 10, pas: 25, dri: 25, phy: 5, tw: 5, wr: 5 },
+  fb: { pac: 20, sho: 7, pas: 20, dri: 20, def: 15, phy: 5, tw: 5, wr: 8 },
+  cb: { pac: 10, pas: 25, dri: 10, def: 30, phy: 15, tw: 5, wr: 5 },
 }
 
 // Card position → rating group. GK has no stats of its own, so it reads as CB.
@@ -57,11 +57,6 @@ function trimmedMean(values: number[]): number {
   return kept.reduce((sum, v) => sum + v, 0) / kept.length
 }
 
-// 60-99 vote scale → 70-99 display scale, order preserved.
-function toDisplay(raw: number): number {
-  return Math.max(70, Math.min(99, Math.round(70 + ((raw - 60) * 29) / 39)))
-}
-
 // All votes for one player → the public row. `votes` holds one entry per
 // (voter, stat); every saved rating covers all 8 stats.
 export function computePlayerRating(votes: { voter_id: string; stat: RatingStat; value: number }[]): PlayerRating {
@@ -79,7 +74,7 @@ export function computePlayerRating(votes: { voter_id: string; stat: RatingStat;
   const result = { ...empty }
   for (const group of POSITION_GROUPS) {
     const raw = Object.entries(WEIGHTS[group]).reduce((sum, [s, w]) => sum + stat[s as RatingStat] * (w as number), 0) / 100
-    result[group] = toDisplay(raw)
+    result[group] = Math.round(raw)
   }
   return result
 }

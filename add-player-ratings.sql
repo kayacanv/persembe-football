@@ -2,7 +2,7 @@
 --
 -- One row per rated player, recomputed by app/actions/rating-actions.ts after
 -- every saved rating. Holds only what the card shows: the five position
--- ratings (display scale 70-99) and how many people have rated the player.
+-- ratings (60-99, same scale as the votes) and how many people have rated the player.
 -- Position ratings stay NULL until MIN_VOTERS have voted (the card shows "?").
 -- The per-stat averages are deliberately not stored anywhere public.
 --
