@@ -10,12 +10,15 @@
 
 import { cookies } from "next/headers"
 import { createServerClient as createSsrServerClient } from "@supabase/ssr"
+import { createServerClient } from "./supabase"
 
 export type CurrentPlayer = {
   id: string
   name: string
   username: string | null
   photo_url: string | null
+  // Listed in public.admins (add-admins.sql). Drives the home-page admin shortcuts.
+  is_admin: boolean
 }
 
 // Cookie-aware client bound to the current request. `setAll` throws when called
@@ -71,6 +74,22 @@ export async function getCurrentPlayer(): Promise<CurrentPlayer | null> {
     console.error("Error loading current player:", error.message)
     return null
   }
+  if (!data) return null
 
-  return (data as CurrentPlayer | null) ?? null
+  return { ...data, is_admin: await isAdmin(data.id) }
+}
+
+// public.admins is RLS-locked with no policies, so only the service-role client
+// can read it. Any failure (table missing, key missing) means "not an admin".
+async function isAdmin(userId: string): Promise<boolean> {
+  const supabase = createServerClient()
+  if (!supabase) return false
+
+  const { data, error } = await supabase.from("admins").select("user_id").eq("user_id", userId).maybeSingle()
+
+  if (error) {
+    console.error("Error checking admin:", error.message)
+    return false
+  }
+  return data !== null
 }

@@ -14,6 +14,7 @@ A web app for organising our weekly Thursday halı saha (small-sided astroturf) 
 - **Teammate preferences**: signed-in players privately mark who they'd like to play alongside.
 - **MVP voting**: players vote for the man of the match after each game.
 - **Accounts**: players claim their existing profile and sign in with a username and password. Phone numbers are kept private and used only for contact.
+- **Admin shortcuts**: players listed in the `admins` table (see `add-admins.sql`) get one-tap links to the admin views on the home page.
 - **Bilingual**: Turkish (default) and English.
 - **Installable**: works as a home-screen app (PWA) with an offline fallback page.
 
