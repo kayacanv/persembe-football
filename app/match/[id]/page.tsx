@@ -126,6 +126,9 @@ export default function MatchPage({ params }: { params: { id: string } }) {
   const [scoreA, setScoreA] = useState<number | undefined>(undefined)
   const [scoreB, setScoreB] = useState<number | undefined>(undefined)
   const [savingScore, setSavingScore] = useState(false)
+  // Anyone may enter the score of a finished match. Admins always see the form;
+  // everyone else sees it while no score is in yet, or after tapping the pencil.
+  const [isEditingScore, setIsEditingScore] = useState(false)
 
   // Date edit state
   const [isEditingDate, setIsEditingDate] = useState(false)
@@ -588,6 +591,7 @@ export default function MatchPage({ params }: { params: { id: string } }) {
 
       if (result.success) {
         setMatch((prev) => (prev ? { ...prev, score_a: scoreA, score_b: scoreB } : null))
+        setIsEditingScore(false)
         toast({
           title: t("common.success"),
           description: t("match.scoreUpdated"),
@@ -1455,7 +1459,8 @@ export default function MatchPage({ params }: { params: { id: string } }) {
 
           {/* Score Section */}
           <div className="mt-4 pt-4 border-t">
-            {isAdmin && match.status === "done" ? (
+            {match.status === "done" &&
+            (isAdmin || isEditingScore || (match.score_a == null && match.score_b == null)) ? (
               <div>
                 <h3 className="text-sm font-medium mb-2">{t("match.scoreHeading")}</h3>
                 <div className="flex items-center gap-2 mb-3">
@@ -1487,28 +1492,56 @@ export default function MatchPage({ params }: { params: { id: string } }) {
                     />
                   </div>
                 </div>
-                <Button
-                  onClick={handleScoreUpdate}
-                  disabled={savingScore}
-                  className="w-full bg-green-600 hover:bg-green-700"
-                >
-                  {savingScore ? (
-                    <>
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" /> {t("common.saving")}
-                    </>
-                  ) : (
-                    <>
-                      <Save className="mr-2 h-4 w-4" /> {t("match.saveScore")}
-                    </>
+                <div className="flex gap-2">
+                  {isEditingScore && (
+                    <Button
+                      variant="outline"
+                      onClick={() => {
+                        setScoreA(match.score_a ?? 0)
+                        setScoreB(match.score_b ?? 0)
+                        setIsEditingScore(false)
+                      }}
+                      disabled={savingScore}
+                      className="flex-1 bg-transparent"
+                    >
+                      {t("common.cancel")}
+                    </Button>
                   )}
-                </Button>
+                  <Button
+                    onClick={handleScoreUpdate}
+                    disabled={savingScore}
+                    className="flex-1 bg-green-600 hover:bg-green-700"
+                  >
+                    {savingScore ? (
+                      <>
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" /> {t("common.saving")}
+                      </>
+                    ) : (
+                      <>
+                        <Save className="mr-2 h-4 w-4" /> {t("match.saveScore")}
+                      </>
+                    )}
+                  </Button>
+                </div>
               </div>
             ) : (
               match.status === "done" && (
                 <div className="text-center">
                   <div className="text-sm text-muted-foreground mb-1">{t("match.scoreHeading")}</div>
-                  <div className="text-2xl font-bold">
-                    {match.score_a ?? 0} - {match.score_b ?? 0}
+                  <div className="flex items-center justify-center gap-1">
+                    <div className="text-2xl font-bold">
+                      {match.score_a ?? 0} - {match.score_b ?? 0}
+                    </div>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-8 w-8 text-muted-foreground"
+                      onClick={() => setIsEditingScore(true)}
+                      title={t("match.editScore")}
+                      aria-label={t("match.editScore")}
+                    >
+                      <Pencil className="h-4 w-4" />
+                    </Button>
                   </div>
                 </div>
               )
