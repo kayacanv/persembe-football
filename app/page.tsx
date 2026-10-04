@@ -55,6 +55,8 @@ import { AuthBadge } from "@/app/components/auth-badge"
 import { RatingBanner } from "@/app/components/rating-banner"
 import { PreferencesBanner } from "@/app/components/preferences-banner"
 import { InstallAppBanner } from "@/app/components/install-app-banner"
+import { AdminPanel } from "@/app/components/admin-panel"
+import { useCurrentPlayer } from "@/app/lib/use-current-player"
 
 const TAB_VALUES = ["matches", "rankings", "contact", "account"] as const
 
@@ -75,7 +77,8 @@ export default function HomePage() {
   const [creatingMatch, setCreatingMatch] = useState(false)
 
   const searchParams = useSearchParams()
-  const isAdmin = searchParams.get("admin") === "true"
+  const { player } = useCurrentPlayer()
+  const isAdmin = searchParams.get("admin") === "true" || !!player?.is_admin
 
   // Tab is controlled so it can be opened directly via URL, e.g. ?tab=contact
   const tabParam = searchParams.get("tab")
@@ -228,6 +231,15 @@ export default function HomePage() {
       <RatingBanner />
       <PreferencesBanner />
       <InstallAppBanner />
+
+      {player?.is_admin && (
+        <AdminPanel
+          activeMatch={activeMatch}
+          lastMatch={pastMatches[0] ?? null}
+          loading={loadingMatches}
+          onCreateMatch={() => setCreateMatchDialogOpen(true)}
+        />
+      )}
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
         <TabsList className="grid w-full grid-cols-4 mb-6">

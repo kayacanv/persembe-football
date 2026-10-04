@@ -7,13 +7,14 @@ A web app for organising our weekly Thursday halı saha (small-sided astroturf) 
 ## Features
 
 - **Weekly matches**: the next Thursday match is created automatically. Players join or leave, and anyone past the 16-player cap goes on the reserve list.
-- **Payments**: players pay their pitch fee by card (Stripe) or bank transfer (Starling). Starling transfers are matched to players automatically by payment reference or payer name.
+- **Payments**: players pay their pitch fee by card (Stripe) or bank transfer (Starling). Starling transfers are matched to players automatically by payment reference or payer name. Admins can mark a payment by hand, with a note, when the money went to another account.
 - **Kumbara (piggy bank)**: one-off whip-rounds for pitch fees that have to be paid even when a match doesn't go ahead.
 - **Team builder**: drag-and-drop team organising with free-form formations and jersey numbers.
 - **Player cards**: FIFA-style player cards with photos, club logos and stats that players rate for each other.
 - **Teammate preferences**: signed-in players privately mark who they'd like to play alongside.
 - **MVP voting**: players vote for the man of the match after each game.
 - **Accounts**: players claim their existing profile and sign in with a username and password. Phone numbers are kept private and used only for contact.
+- **Admin shortcuts**: players listed in the `admins` table (see `add-admins.sql`) get one-tap links to the admin views on the home page.
 - **Bilingual**: Turkish (default) and English.
 - **Installable**: works as a home-screen app (PWA) with an offline fallback page.
 
