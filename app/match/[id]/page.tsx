@@ -96,12 +96,13 @@ export default function MatchPage({ params }: { params: { id: string } }) {
   const dateFnsLocale = locale === "en" ? enUS : trLocale
   const router = useRouter()
   const searchParams = useSearchParams()
-  const isAdmin = searchParams.get("admin") === "true"
   const matchId = params.id
-  // Hand-marking payments needs a real admin session too (the server checks it
-  // again); ?admin=true alone only shows the older admin controls.
+  // Admins (public.admins) get the admin view just by being signed in; ?admin=true
+  // still switches it on for anyone. Hand-marking payments needs the real admin
+  // session, because the server checks it again.
   const { player: currentPlayer } = useCurrentPlayer()
-  const canMarkPaid = isAdmin && !!currentPlayer?.is_admin
+  const canMarkPaid = !!currentPlayer?.is_admin
+  const isAdmin = searchParams.get("admin") === "true" || canMarkPaid
 
   // State
   const [match, setMatch] = useState<Match | null>(null)
@@ -1104,11 +1105,22 @@ export default function MatchPage({ params }: { params: { id: string } }) {
             <div
               key={player.id}
               className={`flex justify-between items-center p-3 border rounded-lg ${
-                match.status === "done" && listType === "team"
+                match.status === "done" &&
+                listType === "team" &&
+                (!canMarkPaid || !player.has_paid || manualPayments[player.match_player_id])
                   ? "cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800/50"
                   : ""
               } ${listType === "waitlist" ? "bg-yellow-50 dark:bg-yellow-900/20" : ""}`}
-              onClick={() => (match.status === "done" && listType === "team" ? openPaymentDialog(player) : null)}
+              onClick={() => {
+                if (match.status !== "done" || listType !== "team") return
+                // Admins tap a player to mark them paid by hand (or edit / undo an
+                // earlier hand mark); card and bank payments are left alone.
+                if (canMarkPaid) {
+                  if (!player.has_paid || manualPayments[player.match_player_id]) setManualPaymentTarget(player)
+                  return
+                }
+                openPaymentDialog(player)
+              }}
             >
               <div className="min-w-0">
                 <div className="font-medium flex items-center">
@@ -1238,7 +1250,7 @@ export default function MatchPage({ params }: { params: { id: string } }) {
           </Button>
         </Link>
 
-        {/* Admin Status Dropdown - Only visible when ?admin=true */}
+        {/* Admin Status Dropdown - admins, or ?admin=true */}
         {isAdmin && (
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
