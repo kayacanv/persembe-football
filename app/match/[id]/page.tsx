@@ -33,6 +33,8 @@ import {
   LogIn,
   Phone,
   Sparkles,
+  HandCoins,
+  StickyNote,
 } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { toast } from "@/components/ui/use-toast"
@@ -75,6 +77,9 @@ import { Textarea } from "@/components/ui/textarea"
 import MvpVoting from "@/app/components/mvp-voting"
 import { useTranslation } from "@/lib/i18n/useTranslation"
 import { formatMatchDate, formatFullDate } from "@/lib/i18n/format"
+import { ManualPaymentDialog } from "@/app/components/manual-payment-dialog"
+import { listManualPayments, type ManualPayment } from "@/app/actions/manual-payment-actions"
+import { useCurrentPlayer } from "@/app/lib/use-current-player"
 
 // Revolut (manual "mark as paid") is disabled for matches on/after 4 June 2026 —
 // from then on only Starling and Stripe are accepted. Older matches keep Revolut.
@@ -93,6 +98,10 @@ export default function MatchPage({ params }: { params: { id: string } }) {
   const searchParams = useSearchParams()
   const isAdmin = searchParams.get("admin") === "true"
   const matchId = params.id
+  // Hand-marking payments needs a real admin session too (the server checks it
+  // again); ?admin=true alone only shows the older admin controls.
+  const { player: currentPlayer } = useCurrentPlayer()
+  const canMarkPaid = isAdmin && !!currentPlayer?.is_admin
 
   // State
   const [match, setMatch] = useState<Match | null>(null)
@@ -160,6 +169,11 @@ export default function MatchPage({ params }: { params: { id: string } }) {
   const [paidWithRevolut, setPaidWithRevolut] = useState(false)
   const [confirmingManualPayment, setConfirmingManualPayment] = useState(false)
 
+  // Payments an admin marked by hand (money sent to another account), keyed by
+  // match_player_id, and the registration the hand-mark dialog is open for.
+  const [manualPayments, setManualPayments] = useState<Record<string, ManualPayment>>({})
+  const [manualPaymentTarget, setManualPaymentTarget] = useState<PlayerWithDetails | null>(null)
+
   // Add state for the confirmation dialog
   const [confirmDialogOpen, setConfirmDialogOpen] = useState(false)
   const [userToConfirm, setUserToConfirm] = useState<PlayerWithDetails | null>(null)
@@ -212,6 +226,34 @@ export default function MatchPage({ params }: { params: { id: string } }) {
 
     loadData()
   }, [matchId])
+
+  useEffect(() => {
+    if (!canMarkPaid || match?.status !== "done") return
+    let active = true
+    listManualPayments(matchId)
+      .then((rows) => {
+        if (active) setManualPayments(Object.fromEntries(rows.map((row) => [row.match_player_id, row])))
+      })
+      .catch((error) => console.error("Error loading manual payments:", error))
+    return () => {
+      active = false
+    }
+  }, [canMarkPaid, match?.status, matchId])
+
+  const handleManualPaymentMarked = (payment: ManualPayment) => {
+    setManualPayments((prev) => ({ ...prev, [payment.match_player_id]: payment }))
+    setPlayers((prev) =>
+      prev.map((p) => (p.match_player_id === payment.match_player_id ? { ...p, has_paid: true } : p)),
+    )
+    setManualPaymentTarget(null)
+  }
+
+  const handleManualPaymentUndone = async (matchPlayerId: string) => {
+    setManualPayments(({ [matchPlayerId]: _undone, ...rest }) => rest)
+    setManualPaymentTarget(null)
+    // Re-read rather than assume unpaid: the auto_paid trigger keeps the fee collector paid.
+    setPlayers(await getPlayersForMatch(matchId))
+  }
 
   // Get payment status from URL parameters
   useEffect(() => {
@@ -1068,7 +1110,7 @@ export default function MatchPage({ params }: { params: { id: string } }) {
               } ${listType === "waitlist" ? "bg-yellow-50 dark:bg-yellow-900/20" : ""}`}
               onClick={() => (match.status === "done" && listType === "team" ? openPaymentDialog(player) : null)}
             >
-              <div>
+              <div className="min-w-0">
                 <div className="font-medium flex items-center">
                   <Link
                     href={`/profile/${player.id}`}
@@ -1083,6 +1125,16 @@ export default function MatchPage({ params }: { params: { id: string } }) {
                   <Clock3 className="h-3 w-3 mr-1" />
                   {formatRelativeTime(player.registration_date)}
                 </div>
+                {canMarkPaid && manualPayments[player.match_player_id] && (
+                  <div className="text-xs text-muted-foreground mt-1 flex items-start">
+                    <StickyNote className="h-3 w-3 mr-1 mt-0.5 shrink-0" />
+                    <span className="break-words">
+                      {t("manualPay.rowLabel")}
+                      {manualPayments[player.match_player_id].note &&
+                        ` · ${manualPayments[player.match_player_id].note}`}
+                    </span>
+                  </div>
+                )}
                 {player.position && (
                   <Badge
                     variant="outline"
@@ -1095,15 +1147,46 @@ export default function MatchPage({ params }: { params: { id: string } }) {
 
               <div className="flex items-center">
                 {match.status === "done" && listType === "team" ? (
-                  player.has_paid ? (
-                    <Badge className="bg-green-500">
-                      <Check className="mr-1 h-3 w-3" /> {t("payment.paid")}
-                    </Badge>
-                  ) : (
-                    <Badge variant="destructive">
-                      <X className="mr-1 h-3 w-3" /> {t("payment.unpaid")}
-                    </Badge>
-                  )
+                  <>
+                    {player.has_paid ? (
+                      <Badge className="bg-green-500">
+                        <Check className="mr-1 h-3 w-3" /> {t("payment.paid")}
+                      </Badge>
+                    ) : (
+                      <Badge variant="destructive">
+                        <X className="mr-1 h-3 w-3" /> {t("payment.unpaid")}
+                      </Badge>
+                    )}
+                    {/* Unpaid players can be marked by hand; hand-marked ones edited or
+                        undone. Card and bank payments are never touched from here. */}
+                    {canMarkPaid && (!player.has_paid || manualPayments[player.match_player_id]) && (
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="ml-1 h-8 w-8 shrink-0 text-muted-foreground hover:text-green-600"
+                        title={
+                          manualPayments[player.match_player_id]
+                            ? t("manualPay.editButton")
+                            : t("manualPay.markButton")
+                        }
+                        aria-label={
+                          manualPayments[player.match_player_id]
+                            ? t("manualPay.editButton")
+                            : t("manualPay.markButton")
+                        }
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          setManualPaymentTarget(player)
+                        }}
+                      >
+                        {manualPayments[player.match_player_id] ? (
+                          <Pencil className="h-4 w-4" />
+                        ) : (
+                          <HandCoins className="h-4 w-4" />
+                        )}
+                      </Button>
+                    )}
+                  </>
                 ) : (
                   // Dropouts happen right up to kickoff, so the remove control stays on
                   // every list (including the team view) until the match is done.
@@ -1631,6 +1714,16 @@ export default function MatchPage({ params }: { params: { id: string } }) {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Hand-marked payment (admins) */}
+      <ManualPaymentDialog
+        player={manualPaymentTarget}
+        existing={manualPaymentTarget ? (manualPayments[manualPaymentTarget.match_player_id] ?? null) : null}
+        price={match.price}
+        onClose={() => setManualPaymentTarget(null)}
+        onMarked={handleManualPaymentMarked}
+        onUndone={handleManualPaymentUndone}
+      />
 
       {/* Payment Dialog */}
       <Dialog open={paymentDialogOpen} onOpenChange={setPaymentDialogOpen}>
