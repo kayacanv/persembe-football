@@ -79,6 +79,7 @@ import { useTranslation } from "@/lib/i18n/useTranslation"
 import { formatMatchDate, formatFullDate } from "@/lib/i18n/format"
 import { ManualPaymentDialog } from "@/app/components/manual-payment-dialog"
 import { listManualPayments, type ManualPayment } from "@/app/actions/manual-payment-actions"
+import { adminRemovePlayerFromMatch } from "@/app/actions/admin-match-actions"
 import { useCurrentPlayer } from "@/app/lib/use-current-player"
 
 // Revolut (manual "mark as paid") is disabled for matches on/after 4 June 2026 —
@@ -98,11 +99,12 @@ export default function MatchPage({ params }: { params: { id: string } }) {
   const searchParams = useSearchParams()
   const matchId = params.id
   // Admins (public.admins) get the admin view just by being signed in; ?admin=true
-  // still switches it on for anyone. Hand-marking payments needs the real admin
-  // session, because the server checks it again.
+  // still switches it on for anyone. Hand-marking payments and removing players
+  // from a finished match need the real admin session, because the server checks
+  // it again.
   const { player: currentPlayer } = useCurrentPlayer()
-  const canMarkPaid = !!currentPlayer?.is_admin
-  const isAdmin = searchParams.get("admin") === "true" || canMarkPaid
+  const isSignedInAdmin = !!currentPlayer?.is_admin
+  const isAdmin = searchParams.get("admin") === "true" || isSignedInAdmin
 
   // State
   const [match, setMatch] = useState<Match | null>(null)
@@ -232,7 +234,7 @@ export default function MatchPage({ params }: { params: { id: string } }) {
   }, [matchId])
 
   useEffect(() => {
-    if (!canMarkPaid || match?.status !== "done") return
+    if (!isSignedInAdmin || match?.status !== "done") return
     let active = true
     listManualPayments(matchId)
       .then((rows) => {
@@ -242,7 +244,7 @@ export default function MatchPage({ params }: { params: { id: string } }) {
     return () => {
       active = false
     }
-  }, [canMarkPaid, match?.status, matchId])
+  }, [isSignedInAdmin, match?.status, matchId])
 
   const handleManualPaymentMarked = (payment: ManualPayment) => {
     setManualPayments((prev) => ({ ...prev, [payment.match_player_id]: payment }))
@@ -627,10 +629,15 @@ export default function MatchPage({ params }: { params: { id: string } }) {
   const handleRemovePlayer = async () => {
     if (!playerToRemove) return
 
-    // If the player doesn't have a phone number or has a generated one, skip verification.
-    // Otherwise compare loosely (samePhone) so a member can type their number with or
-    // without the country code / formatting and still match the E.164-stored value.
-    if (!isPlaceholderPhone(playerToRemove.phone) && !samePhone(verificationPhone, playerToRemove.phone)) {
+    // Admins skip the phone check (the server action verifies the admin session).
+    // Otherwise, if the player doesn't have a phone number or has a generated one, skip
+    // verification; else compare loosely (samePhone) so a member can type their number
+    // with or without the country code / formatting and still match the E.164-stored value.
+    if (
+      !isSignedInAdmin &&
+      !isPlaceholderPhone(playerToRemove.phone) &&
+      !samePhone(verificationPhone, playerToRemove.phone)
+    ) {
       toast({
         title: t("common.error"),
         description: t("error.phoneMismatch"),
@@ -641,9 +648,14 @@ export default function MatchPage({ params }: { params: { id: string } }) {
 
     try {
       setRemoving(true)
-      const result = await removePlayerFromMatch(playerToRemove.match_player_id)
+      const removedId = playerToRemove.match_player_id
+      const result = isSignedInAdmin
+        ? await adminRemovePlayerFromMatch(removedId)
+        : await removePlayerFromMatch(removedId)
 
       if (result === "removed") {
+        setManualPayments(({ [removedId]: _removed, ...rest }) => rest)
+
         // Refresh the list: a reserve may have been promoted into the freed slot
         const updatedPlayers = await getPlayersForMatch(matchId)
         setPlayers(updatedPlayers)
@@ -671,7 +683,7 @@ export default function MatchPage({ params }: { params: { id: string } }) {
       } else {
         toast({
           title: t("common.error"),
-          description: t("match.removePlayerError"),
+          description: result === "forbidden" ? t("manualPay.forbidden") : t("match.removePlayerError"),
           variant: "destructive",
         })
       }
@@ -1082,6 +1094,12 @@ export default function MatchPage({ params }: { params: { id: string } }) {
     )
   }
 
+  // Remove dialog: admins may also remove a player whose payment was only a hand
+  // mark (it is deleted with them); card and bank payments always block removal.
+  const removingHandMarked =
+    isSignedInAdmin && !!playerToRemove && !!manualPayments[playerToRemove.match_player_id]
+  const removeBlockedPaid = !!playerToRemove?.has_paid && !removingHandMarked
+
   // Calculate Stripe price (base price + 0.20)
   const stripePrice = match.price + 0.2
   const revolutAllowed = isRevolutAllowed(match)
@@ -1111,7 +1129,7 @@ export default function MatchPage({ params }: { params: { id: string } }) {
               className={`flex justify-between items-center p-3 border rounded-lg ${
                 match.status === "done" &&
                 listType === "team" &&
-                (!canMarkPaid || !player.has_paid || manualPayments[player.match_player_id])
+                (!isSignedInAdmin || !player.has_paid || manualPayments[player.match_player_id])
                   ? "cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800/50"
                   : ""
               } ${listType === "waitlist" ? "bg-yellow-50 dark:bg-yellow-900/20" : ""}`}
@@ -1119,7 +1137,7 @@ export default function MatchPage({ params }: { params: { id: string } }) {
                 if (match.status !== "done" || listType !== "team") return
                 // Admins tap a player to mark them paid by hand (or edit / undo an
                 // earlier hand mark); card and bank payments are left alone.
-                if (canMarkPaid) {
+                if (isSignedInAdmin) {
                   if (!player.has_paid || manualPayments[player.match_player_id]) setManualPaymentTarget(player)
                   return
                 }
@@ -1141,7 +1159,7 @@ export default function MatchPage({ params }: { params: { id: string } }) {
                   <Clock3 className="h-3 w-3 mr-1" />
                   {formatRelativeTime(player.registration_date)}
                 </div>
-                {canMarkPaid && manualPayments[player.match_player_id] && (
+                {isSignedInAdmin && manualPayments[player.match_player_id] && (
                   <div className="text-xs text-muted-foreground mt-1 flex items-start">
                     <StickyNote className="h-3 w-3 mr-1 mt-0.5 shrink-0" />
                     <span className="break-words">
@@ -1175,7 +1193,7 @@ export default function MatchPage({ params }: { params: { id: string } }) {
                     )}
                     {/* Unpaid players can be marked by hand; hand-marked ones edited or
                         undone. Card and bank payments are never touched from here. */}
-                    {canMarkPaid && (!player.has_paid || manualPayments[player.match_player_id]) && (
+                    {isSignedInAdmin && (!player.has_paid || manualPayments[player.match_player_id]) && (
                       <Button
                         variant="ghost"
                         size="icon"
@@ -1202,11 +1220,27 @@ export default function MatchPage({ params }: { params: { id: string } }) {
                         )}
                       </Button>
                     )}
+                    {isSignedInAdmin && (
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8 shrink-0 text-muted-foreground hover:text-destructive"
+                        title={t("match.removeAction")}
+                        aria-label={t("match.removeAction")}
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          openRemoveDialog(player)
+                        }}
+                      >
+                        <XCircle className="h-4 w-4" />
+                      </Button>
+                    )}
                   </>
                 ) : (
                   // Dropouts happen right up to kickoff, so the remove control stays on
-                  // every list (including the team view) until the match is done.
-                  match.status !== "done" && (
+                  // every list (including the team view) until the match is done —
+                  // and after it for admins, who tidy up who actually played.
+                  (match.status !== "done" || isSignedInAdmin) && (
                     <Button
                       variant="ghost"
                       size="icon"
@@ -1709,14 +1743,24 @@ export default function MatchPage({ params }: { params: { id: string } }) {
             <DialogTitle>{t("match.removePlayerTitle")}</DialogTitle>
             <DialogDescription>
               {t("match.removePlayerConfirm", { name: playerToRemove?.name ?? "" })}
-              {!playerToRemove?.has_paid && playerToRemove?.phone && !isAutoGeneratedPhone(playerToRemove.phone)
+              {!isSignedInAdmin &&
+              !playerToRemove?.has_paid &&
+              playerToRemove?.phone &&
+              !isAutoGeneratedPhone(playerToRemove.phone)
                 ? t("match.confirmWithPhone")
                 : ""}
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-4">
-            {playerToRemove?.has_paid ? (
-              <p className="text-sm text-destructive">{t("match.removeBlockedPaid")}</p>
+            {removeBlockedPaid ? (
+              <p className="text-sm text-destructive">
+                {isSignedInAdmin ? t("match.adminRemoveBlockedPaid") : t("match.removeBlockedPaid")}
+              </p>
+            ) : isSignedInAdmin ? (
+              <p className="text-sm text-muted-foreground">
+                {t("match.adminRemoveHelp")}
+                {removingHandMarked && ` ${t("match.adminRemoveHandMarked")}`}
+              </p>
             ) : playerToRemove?.phone && !isAutoGeneratedPhone(playerToRemove.phone) ? (
               <div className="space-y-2">
                 <Label htmlFor="verification-phone">{t("common.phoneLabel")}</Label>
@@ -1735,8 +1779,12 @@ export default function MatchPage({ params }: { params: { id: string } }) {
                 {t("match.confirmToRemove")}
               </p>
             )}
-            {!playerToRemove?.has_paid && (
-              <p className="text-sm text-muted-foreground">{t("match.removeExplanation")}</p>
+            {!removeBlockedPaid && (
+              <p className="text-sm text-muted-foreground">
+                {isSignedInAdmin && match.status === "done"
+                  ? t("match.adminRemoveDoneNote")
+                  : t("match.removeExplanation")}
+              </p>
             )}
           </div>
           <DialogFooter>
@@ -1746,7 +1794,7 @@ export default function MatchPage({ params }: { params: { id: string } }) {
             <Button
               variant="destructive"
               onClick={handleRemovePlayer}
-              disabled={removing || !!playerToRemove?.has_paid}
+              disabled={removing || removeBlockedPaid}
             >
               {removing ? (
                 <>
